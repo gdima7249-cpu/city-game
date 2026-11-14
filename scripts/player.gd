@@ -75,6 +75,8 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Прячет персонажа, когда он садится в машину, и возвращает при выходе.
 func set_in_vehicle(in_vehicle: bool, exit_position: Vector3 = Vector3.ZERO, camera_yaw: float = 0.0) -> void:
 	visible = not in_vehicle
+	for hud in get_tree().get_nodes_in_group("foot_hud"):
+		hud.set("visible", not in_vehicle)
 	_collision.set_deferred("disabled", in_vehicle)
 	process_mode = Node.PROCESS_MODE_DISABLED if in_vehicle else Node.PROCESS_MODE_INHERIT
 	velocity = Vector3.ZERO

@@ -15,14 +15,19 @@ extends VehicleBody3D
 @export_group("Руль")
 @export var max_steer_deg: float = 32.0          ## Максимальный угол поворота колёс
 @export var steer_speed: float = 3.0             ## Как быстро крутится руль
-@export var high_speed_steer_factor: float = 0.4 ## Руль на большой скорости (меньше = стабильнее)
+@export var high_speed_steer_factor: float = 0.3 ## Руль на большой скорости (меньше = стабильнее)
+
+@export_group("Устойчивость")
+@export var upright_strength: float = 9000.0 ## Сила, которая не даёт машине опрокинуться
+@export var roll_damping: float = 2500.0     ## Гасит раскачивание корпуса
+@export var auto_recover_time: float = 2.0   ## Через сколько секунд лёжа на боку машина сама встаёт
 
 @export_group("Ручник")
 @export var handbrake_force: float = 40.0
 @export var handbrake_rear_grip: float = 1.2 ## Сцепление задних колёс на ручнике (меньше = больше занос)
 
 @export_group("Вмятины")
-@export var dent_min_speed: float = 3.0   ## Удар слабее этой скорости (м/с) не оставляет вмятин
+@export var dent_min_speed: float = 5.0   ## Удар слабее этой скорости (м/с) не оставляет вмятин
 @export var dent_radius: float = 0.7
 @export var dent_strength: float = 0.03
 
@@ -39,6 +44,7 @@ var _camera_yaw := 0.0
 var _camera_pitch := -0.25
 var _since_mouse_move := 100.0
 var _dent_cooldown := 0.0
+var _flipped_time := 0.0
 
 @onready var _camera_rig: Node3D = $CameraRig
 @onready var _spring_arm: SpringArm3D = $CameraRig/SpringArm3D
@@ -108,6 +114,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	_dent_cooldown -= delta
 	var forward_speed := linear_velocity.dot(global_transform.basis.z)
+	_stabilize(delta)
 
 	if driver == null:
 		return
@@ -164,6 +171,23 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		break
 
 
+## Не даёт машине опрокинуться: мягко возвращает её «крышей вверх»
+## и гасит раскачивание. Если машина всё же легла на бок или крышу
+## и почти не движется, через пару секунд ставит её на колёса.
+func _stabilize(delta: float) -> void:
+	var up := global_transform.basis.y
+	var tilt_axis := up.cross(Vector3.UP)
+	var roll_rate := Vector3(angular_velocity.x, 0.0, angular_velocity.z)
+	apply_torque(tilt_axis * upright_strength - roll_rate * roll_damping)
+
+	if up.dot(Vector3.UP) < 0.3 and linear_velocity.length() < 3.0:
+		_flipped_time += delta
+		if _flipped_time > auto_recover_time:
+			_flip_upright()
+	else:
+		_flipped_time = 0.0
+
+
 ## Угол камеры, при котором она смотрит машине в спину.
 func _behind_yaw() -> float:
 	var f := global_transform.basis.z
@@ -178,6 +202,7 @@ func _set_handbrake(on: bool) -> void:
 
 ## Ставит перевёрнутую машину на колёса (клавиша R).
 func _flip_upright() -> void:
+	_flipped_time = 0.0
 	var yaw := atan2(global_transform.basis.z.x, global_transform.basis.z.z)
 	global_transform = Transform3D(Basis(Vector3.UP, yaw), global_position + Vector3.UP * 1.5)
 	linear_velocity = Vector3.ZERO

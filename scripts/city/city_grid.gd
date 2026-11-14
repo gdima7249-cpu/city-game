@@ -183,7 +183,17 @@ func _build_ground() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(width, depth)
 	asphalt.mesh = plane
-	asphalt.material_override = _material(Color(0.2, 0.2, 0.22))
+	var asphalt_mat := _material(Color(0.32, 0.32, 0.33))
+	var texture_path := "res://assets/downtown/T_Concrete_Asphalt_BaseColor.png"
+	if ResourceLoader.exists(texture_path):
+		# Текстура асфальта из пака, повторяется каждые 8 м
+		asphalt_mat.albedo_color = Color(0.85, 0.85, 0.85)
+		asphalt_mat.albedo_texture = load(texture_path)
+		asphalt_mat.uv1_triplanar = true
+		asphalt_mat.uv1_world_triplanar = true
+		asphalt_mat.uv1_scale = Vector3(0.125, 0.125, 0.125)
+		asphalt_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	asphalt.material_override = asphalt_mat
 	asphalt.position = Vector3(blocks_x * pitch * 0.5, 0.012, blocks_z * pitch * 0.5)
 	add_child(asphalt)
 
