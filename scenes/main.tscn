@@ -1,0 +1,232 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_top_color = Color(0.25, 0.5, 0.85, 1)
+sky_horizon_color = Color(0.7, 0.8, 0.9, 1)
+ground_horizon_color = Color(0.7, 0.8, 0.9, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+tonemap_mode = 2
+ssao_enabled = true
+glow_enabled = true
+
+[sub_resource type="StandardMaterial3D" id="Mat_ground"]
+albedo_color = Color(0.32, 0.4, 0.3, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_road"]
+albedo_color = Color(0.22, 0.22, 0.24, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_concrete"]
+albedo_color = Color(0.62, 0.62, 0.6, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_orange"]
+albedo_color = Color(0.9, 0.5, 0.2, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_red"]
+albedo_color = Color(0.8, 0.25, 0.25, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_teal"]
+albedo_color = Color(0.2, 0.6, 0.6, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_sand"]
+albedo_color = Color(0.86, 0.78, 0.55, 1)
+roughness = 0.85
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.8192, 0, 0.5736, 0.4394, 0.6428, -0.6275, -0.3687, 0.766, 0.5265, 0, 20, 0)
+light_energy = 1.2
+shadow_enabled = true
+directional_shadow_max_distance = 120.0
+
+[node name="Level" type="Node3D" parent="."]
+
+[node name="Ground" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+use_collision = true
+size = Vector3(200, 1, 200)
+material = SubResource("Mat_ground")
+
+[node name="Road" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, -30)
+use_collision = true
+size = Vector3(8, 0.02, 140)
+material = SubResource("Mat_road")
+
+[node name="Road2" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, -30)
+use_collision = true
+size = Vector3(140, 0.02, 8)
+material = SubResource("Mat_road")
+
+[node name="Beach" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, 85)
+use_collision = true
+size = Vector3(200, 0.02, 30)
+material = SubResource("Mat_sand")
+
+[node name="Crate1" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.25, 6)
+use_collision = true
+size = Vector3(2, 0.5, 2)
+material = SubResource("Mat_orange")
+
+[node name="Crate2" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0.5, 6)
+use_collision = true
+size = Vector3(2, 1.0, 2)
+material = SubResource("Mat_orange")
+
+[node name="Crate3" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0.75, 6)
+use_collision = true
+size = Vector3(2, 1.5, 2)
+material = SubResource("Mat_orange")
+
+[node name="Crate4" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 1, 6)
+use_collision = true
+size = Vector3(2, 2.0, 2)
+material = SubResource("Mat_orange")
+
+[node name="Ramp" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 0.9659, 0.2588, 0, -0.2588, 0.9659, -18, 0.9, 4)
+use_collision = true
+size = Vector3(3, 0.3, 8)
+material = SubResource("Mat_teal")
+
+[node name="RampTop" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 1.025, -2)
+use_collision = true
+size = Vector3(3, 2.05, 4.2)
+material = SubResource("Mat_concrete")
+
+[node name="WallLong" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 2, -8)
+use_collision = true
+size = Vector3(0.5, 4, 16)
+material = SubResource("Mat_concrete")
+
+[node name="WallShort" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1.5, -16)
+use_collision = true
+size = Vector3(12, 3, 0.5)
+material = SubResource("Mat_concrete")
+
+[node name="CorridorLeft" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 2, -16)
+use_collision = true
+size = Vector3(0.5, 4, 12)
+material = SubResource("Mat_red")
+
+[node name="CorridorRight" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11, 2, -16)
+use_collision = true
+size = Vector3(0.5, 4, 12)
+material = SubResource("Mat_red")
+
+[node name="CorridorRoof" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.5, 4.25, -16)
+use_collision = true
+size = Vector3(3.5, 0.5, 12)
+material = SubResource("Mat_red")
+
+[node name="Tower1" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 15, -40)
+use_collision = true
+size = Vector3(14, 30, 14)
+material = SubResource("Mat_concrete")
+
+[node name="Tower2" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 22.5, -45)
+use_collision = true
+size = Vector3(14, 45, 14)
+material = SubResource("Mat_concrete")
+
+[node name="Tower3" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 30, -70)
+use_collision = true
+size = Vector3(14, 60, 14)
+material = SubResource("Mat_concrete")
+
+[node name="Tower4" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 12.5, -75)
+use_collision = true
+size = Vector3(14, 25, 14)
+material = SubResource("Mat_concrete")
+
+[node name="Tower5" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 40, -90)
+use_collision = true
+size = Vector3(14, 80, 14)
+material = SubResource("Mat_concrete")
+
+[node name="Platform1" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.8, 18)
+use_collision = true
+size = Vector3(2, 0.4, 2)
+material = SubResource("Mat_teal")
+
+[node name="Platform2" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23.2, 1.4, 18)
+use_collision = true
+size = Vector3(2, 0.4, 2)
+material = SubResource("Mat_teal")
+
+[node name="Platform3" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.4, 2, 18)
+use_collision = true
+size = Vector3(2, 0.4, 2)
+material = SubResource("Mat_teal")
+
+[node name="Platform4" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.6, 2.6, 18)
+use_collision = true
+size = Vector3(2, 0.4, 2)
+material = SubResource("Mat_teal")
+
+[node name="Platform5" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32.8, 3.2, 18)
+use_collision = true
+size = Vector3(2, 0.4, 2)
+material = SubResource("Mat_teal")
+
+[node name="Platform6" type="CSGBox3D" parent="Level"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36, 3.8, 18)
+use_collision = true
+size = Vector3(2, 0.4, 2)
+material = SubResource("Mat_teal")
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 10)
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Controls" type="Label" parent="HUD"]
+offset_left = 16.0
+offset_top = 12.0
+offset_right = 600.0
+offset_bottom = 140.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+text = "WASD — идти, Shift — бежать, Пробел — прыжок
+Мышь — камера, колесо — приблизить/отдалить
+Esc — показать курсор, клик — вернуть управление"
