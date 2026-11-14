@@ -1,3 +1,4 @@
+class_name Player
 extends CharacterBody3D
 ## Персонаж от третьего лица: ходьба, бег, прыжок, камера мышью.
 ##
@@ -23,6 +24,9 @@ extends CharacterBody3D
 @export var min_zoom: float = 2.0
 @export var max_zoom: float = 7.0
 
+@export_group("Машины")
+@export var interact_distance: float = 3.5 ## С какого расстояния можно сесть в машину
+
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 var _coyote_timer := 0.0
@@ -32,36 +36,66 @@ var _spawn_position := Vector3.ZERO
 @onready var _model: Node3D = $Model
 @onready var _camera_pivot: Node3D = $CameraPivot
 @onready var _spring_arm: SpringArm3D = $CameraPivot/SpringArm3D
+@onready var _camera: Camera3D = $CameraPivot/SpringArm3D/Camera3D
+@onready var _collision: CollisionShape3D = $CollisionShape3D
 
 
 func _ready() -> void:
 	_spawn_position = global_position
 	# Камера не должна «упираться» в самого персонажа.
 	_spring_arm.add_excluded_object(get_rid())
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("release_mouse"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if event.is_action_pressed("interact"):
+		var vehicle := _find_nearest_vehicle()
+		if vehicle != null:
+			get_viewport().set_input_as_handled()
+			vehicle.enter(self)
+		return
+
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
 
 	if event is InputEventMouseButton and event.pressed:
-		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_spring_arm.spring_length = maxf(min_zoom, _spring_arm.spring_length - 0.5)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_spring_arm.spring_length = minf(max_zoom, _spring_arm.spring_length + 0.5)
-		return
-
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	elif event is InputEventMouseMotion:
 		_camera_pivot.rotation.y -= event.relative.x * mouse_sensitivity
 		_camera_pivot.rotation.x = clampf(
 			_camera_pivot.rotation.x - event.relative.y * mouse_sensitivity,
 			deg_to_rad(min_pitch_deg),
 			deg_to_rad(max_pitch_deg)
 		)
+
+
+## Прячет персонажа, когда он садится в машину, и возвращает при выходе.
+func set_in_vehicle(in_vehicle: bool, exit_position: Vector3 = Vector3.ZERO, camera_yaw: float = 0.0) -> void:
+	visible = not in_vehicle
+	_collision.set_deferred("disabled", in_vehicle)
+	process_mode = Node.PROCESS_MODE_DISABLED if in_vehicle else Node.PROCESS_MODE_INHERIT
+	velocity = Vector3.ZERO
+	if not in_vehicle:
+		global_position = exit_position
+		_camera_pivot.rotation = Vector3(-0.2, camera_yaw, 0.0)
+		_model.rotation.y = camera_yaw
+		_camera.make_current()
+
+
+func _find_nearest_vehicle() -> Car:
+	var nearest: Car = null
+	var best := interact_distance
+	for node in get_tree().get_nodes_in_group("vehicles"):
+		var car := node as Car
+		if car == null:
+			continue
+		var distance := global_position.distance_to(car.global_position)
+		if distance < best:
+			best = distance
+			nearest = car
+	return nearest
 
 
 func _physics_process(delta: float) -> void:
