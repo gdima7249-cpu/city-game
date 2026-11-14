@@ -52,6 +52,7 @@ emission = Color(1, 0.95, 0.8, 1)
 radius = 0.3
 
 [node name="Car" type="VehicleBody3D"]
+collision_mask = 5
 mass = 1200.0
 center_of_mass_mode = 1
 center_of_mass = Vector3(0, 0.45, 0)

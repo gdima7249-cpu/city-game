@@ -41,6 +41,7 @@ var _spawn_position := Vector3.ZERO
 
 
 func _ready() -> void:
+	add_to_group("player")
 	_spawn_position = global_position
 	# Камера не должна «упираться» в самого персонажа.
 	_spring_arm.add_excluded_object(get_rid())
