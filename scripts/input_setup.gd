@@ -15,6 +15,7 @@ func _enter_tree() -> void:
 	_bind("interact", [KEY_E, KEY_F])
 	_bind("reset_vehicle", [KEY_R])
 	_bind("release_mouse", [KEY_ESCAPE])
+	_bind("time_skip", [KEY_T])
 
 
 func _ready() -> void:
