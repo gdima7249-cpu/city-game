@@ -11,6 +11,11 @@ extends RefCounted
 ## Плитка тротуара 3×3 м, бордюр с одной стороны
 const SIDEWALK_TILE := "Sidewalk_Straight_3m"
 
+## Двери, которые ставятся в дверные проёмы (заходить внутрь нельзя, это просто полотно двери).
+## Модель двери шириной 1 м, сдвиг ставит её в середину проёма шириной 2 м.
+const DOORS: Array[String] = ["Door_1", "Door_2", "Door_3"]
+const DOOR_OFFSET := Vector3(0.5, 0.0, -0.1)
+
 ## Колонны на углах собранных зданий: нижний этаж, средние, верхний
 const COLUMN_BOTTOM := "Trim_Column_Bottom"
 const COLUMN_MIDDLE := "Trim_Column_Center"
@@ -30,7 +35,7 @@ const STYLE_BRICK := {
 const STYLE_TRIM := {
 	"ground": ["Trim_FirstFloor_Window_001", "Trim_FirstFloor_Wall", "Trim_FirstFloor_Window_001"],
 	"door": "DoorFrame_Trim",
-	"upper": ["Trim_Window", "Trim_Window", "Trim_Plain_3"],
+	"upper": ["Trim_Window", "Trim_Window", "Brick_Window_Trim_Single"],
 	"cornice": "Cornice_Trim_Center",
 }
 const STYLE_GLASS := {
@@ -42,6 +47,6 @@ const STYLE_GLASS := {
 const STYLE_WAREHOUSE := {
 	"ground": ["Metal_FirstFloor_Wall", "Metal_FirstFloor_Wall_1", "Metal_FirstFloor_Wall"],
 	"door": "DoorFrame_Metal_Single",
-	"upper": ["Metal_Plain_1", "Metal_Plain_3", "Metal_Plain_1", "Metal_Window"],
+	"upper": ["Metal_Plain_3", "Metal_Plain_3", "Metal_Window"],
 	"cornice": "Cornice_Metal_Center",
 }

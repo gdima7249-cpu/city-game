@@ -399,7 +399,7 @@ func _build_ground() -> void:
 	var texture_path := "res://assets/downtown/T_Concrete_Asphalt_BaseColor.png"
 	if ResourceLoader.exists(texture_path):
 		# Текстура асфальта из пака, повторяется каждые 8 м
-		mat.albedo_color = Color(0.85, 0.85, 0.85)
+		mat.albedo_color = Color(1.5, 1.47, 1.42)
 		mat.albedo_texture = load(texture_path)
 		mat.uv1_triplanar = true
 		mat.uv1_world_triplanar = true
@@ -761,8 +761,12 @@ func _build_modular(xform: Transform3D, width: int, depth: float, floors: int, s
 			var upper_piece: String = upper[rng.randi() % upper.size()]
 			for f in floors:
 				var piece: String
-				if f == 0:
-					piece = style["door"] if k == door_at else ground[rng.randi() % ground.size()]
+				if f == 0 and k == door_at:
+					piece = style["door"]
+					var door: String = CityModels.DOORS[rng.randi() % CityModels.DOORS.size()]
+					_kit.add(door, xform * Transform3D(basis, base) * Transform3D(Basis(), CityModels.DOOR_OFFSET))
+				elif f == 0:
+					piece = ground[rng.randi() % ground.size()]
 				else:
 					piece = upper_piece
 				_kit.add(piece, xform * Transform3D(basis, base + Vector3.UP * (f * FLOOR_HEIGHT)))

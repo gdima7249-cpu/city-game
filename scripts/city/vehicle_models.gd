@@ -28,8 +28,8 @@ const PLAYER_YAW_DEGREES := 0.0
 const TRAFFIC_YAW_DEGREES := 180.0
 ## Модели маленькие (седан около 2.5 м), поэтому увеличиваем под размер игры.
 const SCALE := 1.5
-## Насколько поднять модель игрока, чтобы колёса модели касались земли (высота центра колёс 0.5).
-const PLAYER_LIFT := 0.15
+## Модель игрока сама встаёт колёсами на дорогу (см. car_skin.gd), поэтому подъём 0.
+const PLAYER_LIFT := 0.0
 
 
 static func random_traffic_model(rng_value: int) -> Node3D:

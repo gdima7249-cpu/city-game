@@ -93,6 +93,13 @@ func _ready() -> void:
 	_camera_yaw = _behind_yaw()
 
 
+## Высота дороги под машиной (в её координатах), когда она стоит на подвеске.
+func rest_ground_height() -> float:
+	var anchor_y := _anchors[0].y if not _anchors.is_empty() else 0.5
+	var compression := mass * 9.8 * 0.25 / spring_strength
+	return anchor_y - (suspension_rest + wheel_radius) + compression
+
+
 ## Игрок садится в машину.
 func enter(player: Player) -> void:
 	driver = player
