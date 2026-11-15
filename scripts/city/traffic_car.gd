@@ -143,16 +143,21 @@ func _build_body(color: Color) -> void:
 	var tire := StandardMaterial3D.new()
 	tire.albedo_color = Color(0.06, 0.06, 0.06)
 
-	_add_mesh(_box(Vector3(1.8, 0.6, LENGTH)), Vector3(0, 0.65, 0), paint)
-	_add_mesh(_box(Vector3(1.6, 0.55, 2.1)), Vector3(0, 1.22, 0.2), glass)
-	var wheel := CylinderMesh.new()
-	wheel.top_radius = 0.33
-	wheel.bottom_radius = 0.33
-	wheel.height = 0.25
-	for x: float in [-0.85, 0.85]:
-		for z: float in [-1.35, 1.35]:
-			var w := _add_mesh(wheel, Vector3(x, 0.33, z), tire)
-			w.rotation.z = PI * 0.5
+	# Настоящая модель, если она задана в vehicle_models.gd; иначе коробка с колёсами
+	var model := VehicleModels.random_traffic_model(randi())
+	if model != null:
+		add_child(model)
+	else:
+		_add_mesh(_box(Vector3(1.8, 0.6, LENGTH)), Vector3(0, 0.65, 0), paint)
+		_add_mesh(_box(Vector3(1.6, 0.55, 2.1)), Vector3(0, 1.22, 0.2), glass)
+		var wheel := CylinderMesh.new()
+		wheel.top_radius = 0.33
+		wheel.bottom_radius = 0.33
+		wheel.height = 0.25
+		for x: float in [-0.85, 0.85]:
+			for z: float in [-1.35, 1.35]:
+				var w := _add_mesh(wheel, Vector3(x, 0.33, z), tire)
+				w.rotation.z = PI * 0.5
 
 	var shape := CollisionShape3D.new()
 	var box_shape := BoxShape3D.new()

@@ -9,6 +9,7 @@ var _target := 0
 var _waiting := 0.0
 var _player: Node3D
 var _model: Node3D
+var _human: Humanoid
 var _bob := 0.0
 
 
@@ -25,9 +26,15 @@ func setup(loop: PackedVector3Array, start_corner: int, start_fraction: float, w
 	_target = (start_corner + 1) % _loop.size()
 
 
+func _play(anim_name: String) -> void:
+	if _human != null:
+		_human.play(anim_name, 1.0 if anim_name == "Idle" else speed / 1.3)
+
+
 func _physics_process(delta: float) -> void:
 	if _waiting > 0.0:
 		_waiting -= delta
+		_play("Idle")
 		return
 	var pos := global_position
 	var target := _loop[_target]
@@ -49,19 +56,30 @@ func _physics_process(delta: float) -> void:
 		var to_player := _player.global_position - pos
 		to_player.y = 0.0
 		if to_player.length() < 1.6 and to_player.dot(dir) > 0.3:
+			_play("Idle")
 			return
 
 	var step := minf(speed * delta, distance)
 	pos += dir * step
 	look_at_from_position(pos, pos + dir, Vector3.UP)
-	# Лёгкое покачивание при ходьбе
-	_bob += step * 6.0
-	_model.position.y = absf(sin(_bob)) * 0.05
+	_play("Walk")
+	if _human == null:
+		# Лёгкое покачивание при ходьбе (только у заглушки)
+		_bob += step * 6.0
+		_model.position.y = absf(sin(_bob)) * 0.05
 
 
 func _build_body(shirt: Color, skin: Color) -> void:
 	_model = Node3D.new()
 	add_child(_model)
+	_add_collision()
+	# Настоящая модель человека; если файлов нет — простые фигуры ниже.
+	_human = Humanoid.create(randi())
+	if _human != null:
+		_model.add_child(_human)
+		_play("Walk")
+		_human.anim.advance(randf()) # чтобы все не шагали в ногу
+		return
 	var shirt_mat := StandardMaterial3D.new()
 	shirt_mat.albedo_color = shirt
 	var skin_mat := StandardMaterial3D.new()
@@ -96,6 +114,8 @@ func _build_body(shirt: Color, skin: Color) -> void:
 	head.material_override = skin_mat
 	_model.add_child(head)
 
+
+func _add_collision() -> void:
 	var shape := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.25
