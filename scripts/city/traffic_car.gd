@@ -14,6 +14,7 @@ var heading := Vector3.FORWARD
 
 var _from := 0       # перекрёсток, откуда едем
 var _dir := 0        # направление полосы
+var _lane := 0       # номер полосы (0 — ближняя к оси дороги)
 var _to := 0         # перекрёсток, куда едем
 var _path := PackedVector3Array()
 var _target := 0
@@ -22,23 +23,24 @@ var _committed := false # уже решили проехать перекрёс�
 var _ray: RayCast3D
 
 
-func setup(city: CityGrid, from_index: int, dir: int, pos: Vector3, color: Color, top_speed: float) -> void:
+func setup(city: CityGrid, from_index: int, dir: int, lane: int, pos: Vector3, color: Color, top_speed: float) -> void:
 	grid = city
 	max_speed = top_speed
 	collision_layer = 4  # слой 3: машины трафика
 	collision_mask = 0
 	_build_body(color)
-	_enter_lane(from_index, dir)
+	_enter_lane(from_index, dir, lane)
 	heading = CityGrid.DIRS[dir]
 	global_position = pos
 	look_at(pos + heading, Vector3.UP)
 
 
-func _enter_lane(from_index: int, dir: int) -> void:
+func _enter_lane(from_index: int, dir: int, lane: int) -> void:
 	_from = from_index
 	_dir = dir
+	_lane = lane
 	_to = grid.neighbor(from_index, dir)
-	_path = PackedVector3Array([grid.exit_point(_from, _dir), grid.stop_point(_to, _dir)])
+	_path = PackedVector3Array([grid.exit_point(_from, _dir, _lane), grid.stop_point(_to, _dir, _lane)])
 	_target = 1
 	_turning = false
 	_committed = false
@@ -92,7 +94,7 @@ func _advance(distance: float) -> void:
 			continue
 		# Дошли до конца отрезка пути
 		if _turning:
-			_enter_lane(_to, _dir)
+			_enter_lane(_to, _dir, _lane)
 		elif _committed:
 			_start_turn()
 		else:
@@ -109,10 +111,12 @@ func _advance(distance: float) -> void:
 func _start_turn() -> void:
 	var exits := grid.exits_from(_to, _dir)
 	var leaving := exits[grid.rng.randi() % exits.size()]
-	_path = grid.turn_path(_to, _dir, leaving)
+	var new_lane := grid.lane_after_turn(_to, _dir, leaving, _lane)
+	_path = grid.turn_path(_to, _dir, leaving, _lane, new_lane)
 	_target = 0
 	_turning = true
 	_dir = leaving
+	_lane = new_lane
 
 
 func _gap_to_leader() -> float:

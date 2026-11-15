@@ -70,9 +70,9 @@ directional_shadow_max_distance = 120.0
 [node name="Level" type="Node3D" parent="."]
 
 [node name="Ground" type="CSGBox3D" parent="Level"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, -100)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, -10)
 use_collision = true
-size = Vector3(420, 1, 420)
+size = Vector3(420, 1, 240)
 material = SubResource("Mat_ground")
 
 [node name="Road" type="CSGBox3D" parent="Level"]
@@ -220,8 +220,10 @@ size = Vector3(2, 0.4, 2)
 material = SubResource("Mat_teal")
 
 [node name="District" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -100, 0, -260)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -315, 0, -857)
 script = ExtResource("3_city")
+player_path = NodePath("../Player")
+car_path = NodePath("../Car")
 
 [node name="Props" type="Node3D" parent="."]
 

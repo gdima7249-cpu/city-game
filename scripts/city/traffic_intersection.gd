@@ -4,6 +4,7 @@ extends Node3D
 ##
 ## Зелёный горит по очереди для каждого въезда отдельно, поэтому машины
 ## на перекрёстке никогда не пересекают пути друг друга.
+## На поворотах и прямых стыках (меньше трёх дорог) светофора нет: всегда «зелёный».
 
 enum Light { RED, YELLOW, GREEN }
 
@@ -19,11 +20,13 @@ var _current := 0
 var _phase := 0 # 0 зелёный, 1 жёлтый, 2 все красные
 var _timer := 0.0
 var _lamps := {} # направление -> [красная, жёлтая, зелёная] материалы
+var _has_lights := true
 
 
-func setup(city: CityGrid, idx: int) -> void:
+func setup(city: CityGrid, idx: int, has_lights: bool) -> void:
 	grid = city
 	index = idx
+	_has_lights = has_lights
 	global_position = grid.center(index)
 	for dir in 4:
 		# Въезд в направлении dir существует, если есть соседний перекрёсток позади
@@ -31,12 +34,16 @@ func setup(city: CityGrid, idx: int) -> void:
 			_approaches.append(dir)
 	_current = grid.rng.randi() % maxi(_approaches.size(), 1)
 	_timer = grid.rng.randf_range(0.0, GREEN_TIME)
+	if not _has_lights:
+		return
 	for dir in _approaches:
 		_build_light(dir)
 	_update_lamps()
 
 
 func light_for(dir: int) -> Light:
+	if not _has_lights:
+		return Light.GREEN
 	if _approaches.is_empty() or _approaches[_current] != dir:
 		return Light.RED
 	match _phase:
@@ -46,7 +53,7 @@ func light_for(dir: int) -> Light:
 
 
 func _process(delta: float) -> void:
-	if _approaches.is_empty():
+	if _approaches.is_empty() or not _has_lights:
 		return
 	_timer += delta
 	var limit: float = [GREEN_TIME, YELLOW_TIME, ALL_RED_TIME][_phase]
@@ -62,9 +69,10 @@ func _process(delta: float) -> void:
 
 func _build_light(dir: int) -> void:
 	var h := CityGrid.DIRS[dir]
-	var half := grid.road_width * 0.5
+	var own_half := grid.road_width(index, dir) * 0.5
+	var cross_half := grid.crossing_half(index, dir)
 	# Столб на правом углу перед перекрёстком
-	var base := -h * (half + 0.8) + CityGrid.right_of(h) * (half + 0.8)
+	var base := -h * (cross_half + 0.8) + CityGrid.right_of(h) * (own_half + 0.8)
 	var pole := MeshInstance3D.new()
 	var pole_mesh := CylinderMesh.new()
 	pole_mesh.top_radius = 0.08

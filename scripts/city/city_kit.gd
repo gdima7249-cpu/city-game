@@ -3,12 +3,14 @@ extends RefCounted
 ## Модели пака Quaternius «Downtown City MegaKit» (CC0), папка assets/downtown.
 ##
 ## Одинаковые детали собираются в MultiMesh: тысячи окон и стен рисуются
-## за несколько вызовов отрисовки, и игра не тормозит.
+## за несколько вызовов отрисовки, и игра не тормозит. Город делится на
+## участки по CHUNK метров: участки за спиной камеры не рисуются вовсе.
 
 const PATH := "res://assets/downtown/%s.gltf"
+const CHUNK := 160.0
 
 var _pieces := {}  # имя -> [Mesh, Transform3D] или [] если модели нет
-var _batches := {} # имя -> Array[Transform3D]
+var _batches := {} # [имя, участок] -> Array[Transform3D]
 
 
 static func available() -> bool:
@@ -30,15 +32,18 @@ func add(piece_name: String, xform: Transform3D) -> void:
 	var p := _piece(piece_name)
 	if p.is_empty():
 		return
-	if not _batches.has(piece_name):
-		_batches[piece_name] = []
-	_batches[piece_name].append(xform * (p[1] as Transform3D))
+	var chunk := Vector2i(floori(xform.origin.x / CHUNK), floori(xform.origin.z / CHUNK))
+	var key := [piece_name, chunk]
+	if not _batches.has(key):
+		_batches[key] = []
+	_batches[key].append(xform * (p[1] as Transform3D))
 
 
 ## Создать MultiMesh для всех поставленных деталей.
 func flush(parent: Node3D) -> void:
-	for piece_name in _batches:
-		var transforms: Array = _batches[piece_name]
+	for key: Array in _batches:
+		var piece_name: String = key[0]
+		var transforms: Array = _batches[key]
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.mesh = _piece(piece_name)[0]
@@ -46,7 +51,7 @@ func flush(parent: Node3D) -> void:
 		for k in transforms.size():
 			mm.set_instance_transform(k, transforms[k])
 		var mmi := MultiMeshInstance3D.new()
-		mmi.name = "Kit_" + str(piece_name)
+		mmi.name = "Kit_%s_%d_%d" % [piece_name, key[1].x, key[1].y]
 		mmi.multimesh = mm
 		parent.add_child(mmi)
 	_batches.clear()
