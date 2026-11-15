@@ -1,30 +1,45 @@
 class_name Car
-extends VehicleBody3D
-## Машина: газ, тормоз, руль, ручник, вход и выход, вмятины от ударов.
+extends RigidBody3D
+## Машина игрока с аркадной физикой: газ, тормоз, руль, ручник, вход и выход,
+## вмятины от ударов.
 ##
-## У VehicleBody3D «вперёд» — это ось +Z. Числа с @export можно
-## подбирать в инспекторе, выбрав узел Car.
+## Колёса не настоящие: из каждой точки колеса вниз бьёт луч. Луч работает
+## как пружина подвески, а сила сцепления шин считается здесь же, в коде.
+## Боковые силы шин прикладываются на высоте центра тяжести, поэтому
+## в повороте машину не валит на бок, как бы резко ни крутить руль.
+##
+## У машины «вперёд» — это ось +Z. Числа с @export можно подбирать
+## в инспекторе, выбрав узел Car.
 
 @export_group("Двигатель")
-@export var engine_power: float = 3500.0   ## Сила двигателя
-@export var reverse_power: float = 1800.0  ## Сила заднего хода
-@export var brake_power: float = 6000.0    ## Сила тормоза (S на ходу)
-@export var max_speed_kmh: float = 140.0   ## Максимальная скорость вперёд
+@export var engine_force: float = 7500.0  ## Сила двигателя на старте, Н
+@export var reverse_force: float = 3500.0 ## Сила заднего хода
+@export var brake_force: float = 14000.0  ## Сила тормоза (S на ходу)
+@export var max_speed_kmh: float = 150.0  ## Максимальная скорость вперёд
 @export var max_reverse_kmh: float = 30.0
 
 @export_group("Руль")
-@export var max_steer_deg: float = 32.0          ## Максимальный угол поворота колёс
-@export var steer_speed: float = 3.0             ## Как быстро крутится руль
-@export var high_speed_steer_factor: float = 0.3 ## Руль на большой скорости (меньше = стабильнее)
+@export var max_steer_deg: float = 34.0       ## Угол колёс на малой скорости
+@export var high_speed_steer_deg: float = 7.0 ## Угол колёс на скорости 120 км/ч
+@export var steer_speed: float = 4.0          ## Как быстро крутится руль (радиан в секунду)
+
+@export_group("Шины")
+@export var grip: float = 1.25        ## Сцепление шин (больше — меньше заносит)
+@export var grip_response: float = 14.0 ## Как быстро шина гасит боковое скольжение
+@export var handbrake_rear_grip: float = 0.45 ## Доля сцепления задних колёс на ручнике
+@export var rear_drive: float = 0.7  ## Доля тяги на задних колёсах (остальное — на передних)
+@export var roll_influence: float = 0.1 ## 0 — машина совсем не кренится от шин, 1 — как в жизни
+
+@export_group("Подвеска")
+@export var suspension_rest: float = 0.35  ## Ход подвески от точки колеса до низа колеса, м
+@export var wheel_radius: float = 0.35
+@export var spring_strength: float = 26000.0
+@export var spring_damping: float = 2600.0
+@export var downforce: float = 1.5 ## Прижим на скорости: сила = это число × скорость²
 
 @export_group("Устойчивость")
-@export var upright_strength: float = 9000.0 ## Сила, которая не даёт машине опрокинуться
-@export var roll_damping: float = 2500.0     ## Гасит раскачивание корпуса
-@export var auto_recover_time: float = 2.0   ## Через сколько секунд лёжа на боку машина сама встаёт
-
-@export_group("Ручник")
-@export var handbrake_force: float = 40.0
-@export var handbrake_rear_grip: float = 1.2 ## Сцепление задних колёс на ручнике (меньше = больше занос)
+@export var air_upright_strength: float = 6000.0 ## В воздухе машина выравнивается колёсами вниз
+@export var auto_recover_time: float = 2.0 ## Через сколько секунд лёжа на боку машина сама встаёт
 
 @export_group("Вмятины")
 @export var dent_min_speed: float = 5.0   ## Удар слабее этой скорости (м/с) не оставляет вмятин
@@ -35,11 +50,21 @@ extends VehicleBody3D
 @export var mouse_sensitivity: float = 0.003
 @export var camera_return_delay: float = 1.5 ## Через сколько секунд камера сама встаёт за машину
 
+const WHEEL_NAMES: Array[String] = ["WheelFrontLeft", "WheelFrontRight", "WheelRearLeft", "WheelRearRight"]
+
 var driver: Player = null
 
-var _rear_wheels: Array[VehicleWheel3D] = []
+## Управление в этом кадре: газ (-1..1), руль (-1..1), ручник.
+var throttle_input := 0.0
+var steer_input := 0.0
+var handbrake_input := false
+
+var _wheels: Array[Node3D] = []
+var _anchors: Array[Vector3] = [] # точки крепления колёс в координатах машины
+var _spin: Array[float] = [0.0, 0.0, 0.0, 0.0]
+var _contact_count := 0
+var _steer := 0.0
 var _deformables: Array[DeformableMesh] = []
-var _rear_grip: float = 10.5
 var _camera_yaw := 0.0
 var _camera_pitch := -0.25
 var _since_mouse_move := 100.0
@@ -61,12 +86,10 @@ func _ready() -> void:
 	for node in find_children("*", "MeshInstance3D", true, false):
 		if node is DeformableMesh:
 			_deformables.append(node as DeformableMesh)
-	for child in get_children():
-		var wheel := child as VehicleWheel3D
-		if wheel != null and wheel.use_as_traction and not wheel.use_as_steering:
-			_rear_wheels.append(wheel)
-	if not _rear_wheels.is_empty():
-		_rear_grip = _rear_wheels[0].wheel_friction_slip
+	for wheel_name in WHEEL_NAMES:
+		var wheel := get_node(wheel_name) as Node3D
+		_wheels.append(wheel)
+		_anchors.append(wheel.position)
 	_camera_yaw = _behind_yaw()
 
 
@@ -87,10 +110,6 @@ func exit_vehicle() -> void:
 	var exit_position := global_transform * Vector3(1.8, 0.3, 0.0)
 	driver.set_in_vehicle(false, exit_position, _camera_yaw)
 	driver = null
-	engine_force = 0.0
-	steering = 0.0
-	_set_handbrake(false)
-	brake = 2.0
 	_hud.visible = false
 
 
@@ -113,33 +132,117 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	_dent_cooldown -= delta
-	var forward_speed := linear_velocity.dot(global_transform.basis.z)
+	if driver != null:
+		throttle_input = Input.get_axis("move_back", "move_forward")
+		steer_input = Input.get_axis("move_right", "move_left")
+		handbrake_input = Input.is_action_pressed("handbrake")
+	else:
+		# Без водителя машина стоит на ручнике
+		throttle_input = 0.0
+		steer_input = 0.0
+		handbrake_input = true
+
+	var b := global_transform.basis
+	var forward_speed := linear_velocity.dot(b.z)
+
+	# Руль: чем быстрее едем, тем меньше угол колёс
+	var speed_factor := clampf(absf(forward_speed) / 33.0, 0.0, 1.0)
+	var max_steer := deg_to_rad(lerpf(max_steer_deg, high_speed_steer_deg, speed_factor))
+	_steer = move_toward(_steer, steer_input * max_steer, steer_speed * delta)
+
+	_contact_count = 0
+	for k in _wheels.size():
+		_update_wheel(k, delta, forward_speed)
+
+	if _contact_count > 0:
+		# Прижим и сопротивление воздуха
+		apply_central_force(-b.y * downforce * linear_velocity.length_squared())
+	apply_central_force(-linear_velocity * linear_velocity.length() * 0.45)
 	_stabilize(delta)
 
-	if driver == null:
+
+## Одно колесо: пружина подвески, тяга, тормоз и боковое сцепление.
+func _update_wheel(k: int, delta: float, forward_speed: float) -> void:
+	var b := global_transform.basis
+	var up := b.y
+	var anchor := global_transform * _anchors[k]
+	var max_length := suspension_rest + wheel_radius
+	var query := PhysicsRayQueryParameters3D.create(anchor, anchor - up * max_length, 1, [get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var front := k < 2
+	var rear := not front
+	var wheel: Node3D = _wheels[k]
+
+	var distance := max_length
+	if not hit.is_empty():
+		distance = anchor.distance_to(hit["position"])
+	# Колесо стоит там, где кончился луч
+	var steer_angle := _steer if front else 0.0
+	wheel.position = _anchors[k] - Vector3.UP * (distance - wheel_radius)
+	_spin[k] += forward_speed / wheel_radius * delta
+	wheel.basis = Basis(Vector3.UP, steer_angle) * Basis(Vector3.RIGHT, _spin[k])
+	if hit.is_empty():
 		return
+	_contact_count += 1
 
-	# Газ и тормоз
-	var throttle := Input.get_axis("move_back", "move_forward")
-	var force := 0.0
-	if throttle > 0.0:
-		force = engine_power * throttle if forward_speed > -1.0 else brake_power * throttle
-		if forward_speed * 3.6 > max_speed_kmh:
-			force = 0.0
-	elif throttle < 0.0:
-		force = brake_power * throttle if forward_speed > 1.0 else reverse_power * throttle
-		if -forward_speed * 3.6 > max_reverse_kmh:
-			force = 0.0
-	engine_force = force
-	brake = 0.0 if throttle != 0.0 else 1.0
+	var contact: Vector3 = hit["position"]
+	var normal: Vector3 = hit["normal"]
+	var com := global_transform * center_of_mass
+	var point_velocity := linear_velocity + angular_velocity.cross(contact - com)
 
-	# Руль: на скорости поворачиваем меньше, чтобы машину не кидало
-	var speed_factor := clampf(absf(forward_speed) / 30.0, 0.0, 1.0)
-	var max_steer := deg_to_rad(max_steer_deg) * lerpf(1.0, high_speed_steer_factor, speed_factor)
-	var steer_input := Input.get_axis("move_right", "move_left")
-	steering = move_toward(steering, steer_input * max_steer, steer_speed * delta)
+	# Пружина и амортизатор
+	var compression := max_length - distance
+	var spring := spring_strength * compression - spring_damping * point_velocity.dot(up)
+	spring = clampf(spring, 0.0, mass * 9.8 * 2.0)
+	apply_force(normal * spring, contact - global_position)
 
-	_set_handbrake(Input.is_action_pressed("handbrake"))
+	# Направления колеса по поверхности дороги
+	var wheel_forward := b.z.rotated(up, steer_angle)
+	wheel_forward = (wheel_forward - normal * wheel_forward.dot(normal)).normalized()
+	var wheel_right := normal.cross(wheel_forward).normalized()
+	var v_long := point_velocity.dot(wheel_forward)
+	var v_lat := point_velocity.dot(wheel_right)
+	var wheel_mass := mass * 0.25
+
+	var friction := grip * spring
+	var lateral_rate := grip_response
+	if rear and handbrake_input:
+		friction *= handbrake_rear_grip
+		lateral_rate *= handbrake_rear_grip
+
+	# Сила вдоль колеса: газ, тормоз, ручник, сопротивление качению
+	var longitudinal := -v_long * 40.0
+	if throttle_input > 0.0:
+		if forward_speed < -1.0:
+			longitudinal = -signf(v_long) * brake_force * 0.25
+		elif forward_speed * 3.6 < max_speed_kmh:
+			var share := rear_drive if rear else 1.0 - rear_drive
+			var taper := 1.0 - 0.6 * clampf(forward_speed * 3.6 / max_speed_kmh, 0.0, 1.0)
+			longitudinal = engine_force * throttle_input * share * 0.5 * taper
+	elif throttle_input < 0.0:
+		if forward_speed > 1.0:
+			longitudinal = -signf(v_long) * brake_force * 0.25
+		elif -forward_speed * 3.6 < max_reverse_kmh:
+			var share := rear_drive if rear else 1.0 - rear_drive
+			longitudinal = reverse_force * throttle_input * share * 0.5
+	if handbrake_input and (rear or driver == null):
+		longitudinal = -signf(v_long) * minf(absf(v_long) * wheel_mass / delta, friction)
+	# Тормоз не должен толкать машину назад, когда она уже стоит
+	if absf(v_long) < 0.5 and throttle_input == 0.0:
+		longitudinal = -v_long * wheel_mass / delta * 0.5
+
+	# Боковая сила: шина гасит скольжение вбок
+	var lateral := -v_lat * wheel_mass * lateral_rate
+
+	# Круг трения: вместе обе силы не больше сцепления шины
+	var total := Vector2(longitudinal, lateral)
+	if total.length() > friction:
+		total = total.normalized() * friction
+
+	# Силы шин прикладываем почти на высоте центра тяжести — машина не кренится и не опрокидывается
+	var offset := contact - com
+	offset -= up * offset.dot(up) * (1.0 - roll_influence)
+	apply_force(wheel_forward * total.x + wheel_right * total.y, com + offset - global_position)
 
 
 func _process(delta: float) -> void:
@@ -171,14 +274,15 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		break
 
 
-## Не даёт машине опрокинуться: мягко возвращает её «крышей вверх»
-## и гасит раскачивание. Если машина всё же легла на бок или крышу
+## В воздухе мягко поворачивает машину колёсами вниз, чтобы она
+## приземлялась на колёса. Если машина всё же легла на бок или крышу
 ## и почти не движется, через пару секунд ставит её на колёса.
 func _stabilize(delta: float) -> void:
 	var up := global_transform.basis.y
-	var tilt_axis := up.cross(Vector3.UP)
-	var roll_rate := Vector3(angular_velocity.x, 0.0, angular_velocity.z)
-	apply_torque(tilt_axis * upright_strength - roll_rate * roll_damping)
+	if _contact_count == 0:
+		var tilt_axis := up.cross(Vector3.UP)
+		var roll_rate := angular_velocity - Vector3.UP * angular_velocity.dot(Vector3.UP)
+		apply_torque(tilt_axis * air_upright_strength - roll_rate * air_upright_strength * 0.3)
 
 	if up.dot(Vector3.UP) < 0.3 and linear_velocity.length() < 3.0:
 		_flipped_time += delta
@@ -192,12 +296,6 @@ func _stabilize(delta: float) -> void:
 func _behind_yaw() -> float:
 	var f := global_transform.basis.z
 	return atan2(f.x, f.z) + PI
-
-
-func _set_handbrake(on: bool) -> void:
-	for wheel in _rear_wheels:
-		wheel.brake = handbrake_force if on else 0.0
-		wheel.wheel_friction_slip = handbrake_rear_grip if on else _rear_grip
 
 
 ## Ставит перевёрнутую машину на колёса (клавиша R).
