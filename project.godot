@@ -1,0 +1,27 @@
+; Файл настроек проекта Godot. Обычно его меняют через редактор:
+; Проект -> Настройки проекта.
+
+config_version=5
+
+[application]
+
+config/name="City Game"
+config/description="Игра в открытом городе. Этап 1: персонаж и тестовая карта."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+
+[autoload]
+
+InputSetup="*res://scripts/input_setup.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2
+textures/default_filters/anisotropic_filtering_level=4
+lights_and_shadows/directional_shadow/size=4096
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
