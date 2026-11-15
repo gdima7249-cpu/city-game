@@ -32,6 +32,7 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _coyote_timer := 0.0
 var _jump_buffer_timer := 0.0
 var _spawn_position := Vector3.ZERO
+var _human: Humanoid
 
 @onready var _model: Node3D = $Model
 @onready var _camera_pivot: Node3D = $CameraPivot
@@ -41,7 +42,14 @@ var _spawn_position := Vector3.ZERO
 
 
 func _ready() -> void:
+	add_to_group("player")
 	_spawn_position = global_position
+	# Настоящая модель вместо капсулы (если файлов нет — остаётся капсула)
+	_human = Humanoid.create(0)
+	if _human != null:
+		$Model/Body.visible = false
+		$Model/Visor.visible = false
+		_model.add_child(_human)
 	# Камера не должна «упираться» в самого персонажа.
 	_spring_arm.add_excluded_object(get_rid())
 
@@ -82,6 +90,21 @@ func set_in_vehicle(in_vehicle: bool, exit_position: Vector3 = Vector3.ZERO, cam
 		_camera_pivot.rotation = Vector3(-0.2, camera_yaw, 0.0)
 		_model.rotation.y = camera_yaw
 		_camera.make_current()
+
+
+## Выбирает анимацию по скорости: стоит, идёт, бежит, в прыжке.
+func _animate(on_floor: bool, moving: bool) -> void:
+	if _human == null:
+		return
+	var horizontal := Vector2(velocity.x, velocity.z).length()
+	if not is_on_floor() and not on_floor:
+		_human.play("Jump")
+	elif not moving and horizontal < 0.3:
+		_human.play("Idle")
+	elif horizontal > (walk_speed + run_speed) * 0.5:
+		_human.play("Sprint", horizontal / run_speed)
+	else:
+		_human.play("Walk", clampf(horizontal / 1.6, 0.6, 2.2))
 
 
 func _find_nearest_vehicle() -> Car:
@@ -140,6 +163,7 @@ func _physics_process(delta: float) -> void:
 		_model.rotation.y = lerp_angle(_model.rotation.y, target_yaw, 1.0 - exp(-turn_speed * delta))
 
 	move_and_slide()
+	_animate(on_floor, direction.length() > 0.1)
 
 	# Упал с карты: вернуть на точку старта
 	if global_position.y < -30.0:
