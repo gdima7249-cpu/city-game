@@ -22,6 +22,8 @@ const LOD_COLORS := {
 	"office": Color(0.46, 0.5, 0.55), "warehouse": Color(0.62, 0.62, 0.6), "prebuilt": Color(0.72, 0.62, 0.5),
 }
 
+const FAR_SHADER := preload("res://shaders/far_building.gdshader")
+
 static var _window_texture: ImageTexture
 static var _window_glow: ImageTexture
 
@@ -248,8 +250,8 @@ func modular(xform: Transform3D, width: int, depth: float, floors: int, style: D
 
 	# Плоская крыша и что на ней стоит
 	var top := floors * FLOOR
-	boxes.box(xform * Transform3D(Basis(), Vector3(0, top - 0.1, 0)), Vector3(w - 0.1, 0.2, depth - 0.1),
-			material("roof", Color(0.24, 0.24, 0.25)))
+	boxes.add("box", xform * Transform3D(Basis(), Vector3(0, top - 0.1, 0)), Vector3(w - 0.1, 0.2, depth - 0.1),
+			material("roof", Color(0.24, 0.24, 0.25)), 0.0, 0.0, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 	if opts.get("roof_props", true):
 		_roof_props(xform, w, depth, top, opts)
 	_lod(xform, AABB(Vector3(-w * 0.5, 0.0, -depth * 0.5), Vector3(w, top - 0.05, depth)), style["name"])
@@ -269,22 +271,19 @@ func _lod(xform: Transform3D, b: AABB, style_name: String) -> void:
 			GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY)
 
 
-func _lod_material(style_name: String) -> StandardMaterial3D:
+func _lod_material(style_name: String) -> ShaderMaterial:
 	var key := "lod_" + style_name
 	if _mats.has(key):
 		return _mats[key]
 	_make_window_textures()
-	var m := StandardMaterial3D.new()
-	m.albedo_color = LOD_COLORS.get(style_name, Color(0.6, 0.6, 0.6))
-	m.albedo_texture = _window_texture
-	m.roughness = 0.8
-	m.uv1_triplanar = true
-	m.uv1_world_triplanar = true
-	m.uv1_scale = Vector3(1.0 / 16.0, 1.0 / 24.0, 1.0 / 16.0) # 8 × 8 окон по 2 × 3 м
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	m.emission_texture = _window_glow
-	m.emission = Color(1.0, 0.82, 0.55)
-	NightLights.register(m, CityKit.WINDOW_LIT_ENERGY)
+	var m := ShaderMaterial.new()
+	m.shader = FAR_SHADER
+	var wall: Color = LOD_COLORS.get(style_name, Color(0.6, 0.6, 0.6))
+	m.set_shader_parameter("wall_color", wall)
+	m.set_shader_parameter("roof_color", wall.darkened(0.45))
+	m.set_shader_parameter("windows", _window_texture)
+	m.set_shader_parameter("glow", _window_glow)
+	NightLights.register_shader(m, CityKit.WINDOW_LIT_ENERGY)
 	_mats[key] = m
 	return m
 

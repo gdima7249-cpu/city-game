@@ -11,7 +11,7 @@ extends RefCounted
 ## WINDOW_LIT_ENERGY), в остальных темно — так ночной город выглядит живым.
 
 const PATH := "res://assets/downtown/%s.gltf"
-const CHUNK := 120.0
+const CHUNK := 200.0
 const NEAR_RANGE := 300.0  ## Дальше этого вместо детальных стен — упрощённые дома (BuildingBuilder)
 const GROUND_RANGE := 900.0 ## Тротуары видны далеко
 const SMALL_RANGE := 160.0 ## Дальше этого не рисуются мелкие детали

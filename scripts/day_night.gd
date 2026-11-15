@@ -18,11 +18,11 @@ const SKY_TOP_DAY := Color(0.3, 0.55, 0.88)
 const SKY_TOP_NIGHT := Color(0.03, 0.05, 0.12)
 const HORIZON_DAY := Color(0.78, 0.84, 0.9)
 const HORIZON_DUSK := Color(0.98, 0.58, 0.32)
-const HORIZON_NIGHT := Color(0.1, 0.1, 0.16)
+const HORIZON_NIGHT := Color(0.08, 0.08, 0.11)
 const FOG_DAY := Color(0.8, 0.84, 0.9)
 const FOG_NIGHT := Color(0.06, 0.07, 0.11)
 const AMBIENT_DAY := Color(0.66, 0.64, 0.6)
-const AMBIENT_NIGHT := Color(0.2, 0.21, 0.27)
+const AMBIENT_NIGHT := Color(0.17, 0.17, 0.2)
 
 var hour := 10.0
 
@@ -75,11 +75,11 @@ func _apply() -> void:
 			var azimuth := deg_to_rad(lerpf(-110.0, 110.0, t))
 			_sun.rotation = Vector3(-deg_to_rad(maxf(elevation, 1.0)), azimuth, 0.0)
 			_sun.light_color = Color(1.0, 0.96, 0.9).lerp(Color(1.0, 0.62, 0.35), dusk)
-			_sun.light_energy = 1.1 * daylight
+			_sun.light_energy = 0.95 * daylight
 		else:
 			# Луна
 			_sun.rotation = Vector3(-deg_to_rad(40.0), deg_to_rad(30.0), 0.0)
-			_sun.light_color = Color(0.75, 0.8, 1.0)
+			_sun.light_color = Color(0.86, 0.88, 0.95)
 			_sun.light_energy = 0.07
 
 	if _sky != null:
@@ -90,9 +90,9 @@ func _apply() -> void:
 		_sky.ground_bottom_color = Color(0.35, 0.33, 0.3) * lerpf(0.15, 1.0, daylight)
 	if _env != null:
 		_env.ambient_light_color = AMBIENT_NIGHT.lerp(AMBIENT_DAY, daylight)
-		_env.ambient_light_energy = lerpf(0.35, 0.85, daylight)
+		_env.ambient_light_energy = lerpf(0.35, 0.7, daylight)
 		_env.fog_light_color = FOG_NIGHT.lerp(FOG_DAY, daylight).lerp(HORIZON_DUSK.darkened(0.2), dusk * 0.5)
-		_env.tonemap_exposure = lerpf(1.35, 0.95, daylight)
+		_env.tonemap_exposure = lerpf(1.35, 0.85, daylight)
 
 	if absf(night - _last_night) > 0.01 or (night == 0.0) != (_last_night == 0.0):
 		_last_night = night

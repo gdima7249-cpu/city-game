@@ -83,6 +83,7 @@ var _props_body: StaticBody3D
 func _ready() -> void:
 	rng.seed = random_seed
 	NightLights.clear()
+	_boxes = BoxBatch.new()
 	_compute_lines()
 	_props_body = StaticBody3D.new()
 	_props_body.name = "Props"
@@ -94,7 +95,6 @@ func _ready() -> void:
 	_build_water()
 	_kit = CityKit.new()
 	_kit.rng.seed = random_seed + 1
-	_boxes = BoxBatch.new()
 	_builder = BuildingBuilder.new(_kit, _boxes, rng, buildings_body)
 	_props = StreetProps.new(self, _kit, _boxes, rng, _props_body)
 	_build_cells()
@@ -311,13 +311,11 @@ func _grass() -> StandardMaterial3D:
 
 
 func _add_box(size: Vector3, pos: Vector3, material: Material, with_collision: bool = false) -> void:
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = size
-	mesh.mesh = box
-	mesh.material_override = material
-	mesh.position = pos
-	add_child(mesh)
+	# Все простые коробки рисуются пачками (BoxBatch), а не отдельными узлами
+	# Плоские плиты тень не отбрасывают; объёмные предметы (контейнеры, фонтан) — да
+	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if size.y > 0.5 and size.y < 3.5 \
+			else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_boxes.add("box", Transform3D(Basis(), pos), size, material, 0.0, 0.0, shadow)
 	if with_collision:
 		_add_shape(BoxShape3D.new(), size, Transform3D(Basis(), pos))
 
@@ -566,7 +564,7 @@ func _build_downtown(r: Rect2) -> void:
 
 
 func _build_residential(r: Rect2) -> void:
-	_slab(r, 0.1, _material("paving", Color(0.6, 0.58, 0.55)))
+	_slab(r, 0.1, _material("paving", Color(0.5, 0.48, 0.46)))
 	var north := _builder.row(r, -1.0, RESIDENTIAL_ROW)
 	var south := _builder.row(r, 1.0, RESIDENTIAL_ROW)
 	# Двор: трава и пара деревьев
@@ -625,7 +623,7 @@ func _build_park(r: Rect2, density: float) -> void:
 
 
 func _build_square(r: Rect2) -> void:
-	_slab(r, 0.12, _material("square", Color(0.6, 0.58, 0.55)))
+	_slab(r, 0.12, _material("square", Color(0.5, 0.48, 0.46)))
 	var c := r.get_center()
 	# Фонтан
 	var stone := _material("stone", Color(0.8, 0.78, 0.74))
