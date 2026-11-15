@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/car.gd" id="1_car"]
 [ext_resource type="Script" path="res://scripts/deformable_mesh.gd" id="2_deform"]
+[ext_resource type="Script" path="res://scripts/car_skin.gd" id="9_skin"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(1.8, 0.6, 4.2)
@@ -178,3 +179,6 @@ theme_override_constants/outline_size = 4
 text = "W — газ, S — тормоз и задний ход, A/D — руль
 Пробел — ручник, R — поставить машину на колёса
 E — выйти (когда машина почти стоит)"
+
+[node name="Skin" type="Node3D" parent="."]
+script = ExtResource("9_skin")
