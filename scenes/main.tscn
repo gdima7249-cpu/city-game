@@ -1,8 +1,9 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/car.tscn" id="2_car"]
 [ext_resource type="Script" path="res://scripts/city/city_grid.gd" id="3_city"]
+[ext_resource type="Script" path="res://scripts/day_night.gd" id="4_daynight"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.3, 0.55, 0.88, 1)
@@ -21,6 +22,7 @@ ambient_light_color = Color(0.66, 0.64, 0.6, 1)
 ambient_light_sky_contribution = 0.25
 tonemap_mode = 3
 tonemap_exposure = 1.05
+tonemap_white = 6.0
 ssao_enabled = true
 ssao_intensity = 1.5
 fog_enabled = true
@@ -78,6 +80,9 @@ shadow_bias = 0.04
 shadow_normal_bias = 1.5
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 160.0
+
+[node name="DayNight" type="Node" parent="."]
+script = ExtResource("4_daynight")
 
 [node name="Level" type="Node3D" parent="."]
 

@@ -29,22 +29,27 @@ const FLOOR_HEIGHT := 3.0
 
 ## Как застраивается каждая сторона квартала в разных районах
 const DOWNTOWN_ROW := {
-	"prebuilt": CityModels.PREBUILT_TALL, "prebuilt_chance": 0.3,
-	"widths": [8, 10, 12, 14, 16], "depths": [12.0, 14.0, 16.0],
-	"floors": Vector2i(6, 16), "gap": Vector2(0.0, 0.6),
-	"styles": [CityModels.STYLE_GLASS, CityModels.STYLE_GLASS, CityModels.STYLE_TRIM, CityModels.STYLE_BRICK],
+	"prebuilt": CityModels.PREBUILT_TALL, "prebuilt_chance": 0.2,
+	"widths": [8, 10, 12, 14, 16, 18], "depths": [12.0, 14.0, 16.0],
+	"floors": Vector2i(5, 18), "gap": Vector2(0.0, 0.6),
+	"styles": [CityModels.STYLE_GLASS, CityModels.STYLE_OFFICE, CityModels.STYLE_OFFICE,
+			CityModels.STYLE_TRIM, CityModels.STYLE_BRICK_INSET, CityModels.STYLE_REDWHITE],
+	"shops": true, "stepped": 0.35, "roof": "flat",
 }
 const RESIDENTIAL_ROW := {
-	"prebuilt": CityModels.PREBUILT_LOW, "prebuilt_chance": 0.25,
+	"prebuilt": CityModels.PREBUILT_LOW, "prebuilt_chance": 0.15,
 	"widths": [6, 8, 10, 12], "depths": [10.0, 12.0],
-	"floors": Vector2i(2, 5), "gap": Vector2(0.0, 3.0),
-	"styles": [CityModels.STYLE_BRICK, CityModels.STYLE_BRICK, CityModels.STYLE_TRIM],
+	"floors": Vector2i(2, 6), "gap": Vector2(0.0, 3.0),
+	"styles": [CityModels.STYLE_BRICK, CityModels.STYLE_BRICK_ARCH, CityModels.STYLE_BRICK_INSET,
+			CityModels.STYLE_REDWHITE, CityModels.STYLE_TRIM],
+	"shops": true, "roof": "tanks",
 }
 const INDUSTRIAL_ROW := {
 	"prebuilt": [], "prebuilt_chance": 0.0,
 	"widths": [14, 16, 18, 20, 24], "depths": [16.0, 18.0, 20.0],
 	"floors": Vector2i(2, 3), "gap": Vector2(2.0, 6.0),
 	"styles": [CityModels.STYLE_WAREHOUSE],
+	"roof": "flat",
 }
 
 const CAR_COLORS: Array[Color] = [
@@ -64,6 +69,9 @@ var cars: Array[TrafficCar] = []
 var rng := RandomNumberGenerator.new()
 
 var _kit: CityKit
+var _boxes: BoxBatch
+var _builder: BuildingBuilder
+var _props: StreetProps
 var _mats := {}
 var _paint: Array[Transform3D] = []
 var _yellow: Array[Transform3D] = []
@@ -74,17 +82,29 @@ var _props_body: StaticBody3D
 
 func _ready() -> void:
 	rng.seed = random_seed
+	NightLights.clear()
+	_boxes = BoxBatch.new()
 	_compute_lines()
 	_props_body = StaticBody3D.new()
 	_props_body.name = "Props"
 	add_child(_props_body)
+	var buildings_body := StaticBody3D.new()
+	buildings_body.name = "Buildings"
+	add_child(buildings_body)
 	_build_ground()
 	_build_water()
 	_kit = CityKit.new()
+	_kit.rng.seed = random_seed + 1
+	_builder = BuildingBuilder.new(_kit, _boxes, rng, buildings_body)
+	_props = StreetProps.new(self, _kit, _boxes, rng, _props_body)
 	_build_cells()
+	_props.build()
 	_build_markings()
 	_flush_batches()
 	_kit.flush(self)
+	_boxes.flush(self, "Details")
+	# Если игра начинается ночью — сразу включить окна и фонари
+	NightLights.set_amount(NightLights.amount, get_tree())
 	_build_intersections()
 	_spawn_cars()
 	_spawn_pedestrians()
@@ -291,13 +311,11 @@ func _grass() -> StandardMaterial3D:
 
 
 func _add_box(size: Vector3, pos: Vector3, material: Material, with_collision: bool = false) -> void:
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = size
-	mesh.mesh = box
-	mesh.material_override = material
-	mesh.position = pos
-	add_child(mesh)
+	# Все простые коробки рисуются пачками (BoxBatch), а не отдельными узлами
+	# Плоские плиты тень не отбрасывают; объёмные предметы (контейнеры, фонтан) — да
+	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if size.y > 0.5 and size.y < 3.5 \
+			else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_boxes.add("box", Transform3D(Basis(), pos), size, material, 0.0, 0.0, shadow)
 	if with_collision:
 		_add_shape(BoxShape3D.new(), size, Transform3D(Basis(), pos))
 
@@ -526,25 +544,29 @@ func _add_sidewalk_ring(r: Rect2, sidewalk: float) -> void:
 
 func _build_downtown(r: Rect2) -> void:
 	_slab(r, 0.1, _material("plaza", Color(0.55, 0.55, 0.53)))
-	var north := _build_row(r, -1.0, DOWNTOWN_ROW)
-	var south := _build_row(r, 1.0, DOWNTOWN_ROW)
+	var north := _builder.row(r, -1.0, DOWNTOWN_ROW)
+	var south := _builder.row(r, 1.0, DOWNTOWN_ROW)
 	# Между рядами — башня, если хватает места
 	var z0 := r.position.y + north + 2.0
 	var z1 := r.end.y - south - 2.0
 	if z1 - z0 >= 10.0 and r.size.x >= 14.0:
 		var width := mini(int(r.size.x - 6.0) / 2 * 2, 20)
 		var depth := floorf(minf(z1 - z0, 20.0) / 2.0) * 2.0
-		var floors := rng.randi_range(14, 26)
+		var floors := rng.randi_range(14, 28)
 		var pos := Vector3(r.get_center().x, 0.1, (z0 + z1) * 0.5)
 		var xform := Transform3D(Basis(Vector3.UP, PI if rng.randf() < 0.5 else 0.0), pos)
-		_build_modular(xform, width, depth, floors, CityModels.STYLE_GLASS)
-		_add_collision(xform, AABB(Vector3(-width * 0.5, 0.0, -depth * 0.5), Vector3(width, floors * FLOOR_HEIGHT, depth)))
+		var style: Dictionary = [CityModels.STYLE_GLASS, CityModels.STYLE_OFFICE][rng.randi() % 2]
+		if width >= 12 and depth >= 12 and rng.randf() < 0.6:
+			_builder.stepped_tower(xform, width, depth, floors, style, {"roof": "flat"})
+		else:
+			_builder.modular(xform, width, depth, floors, style, {"no_door": true, "antenna": true})
+		_builder.collision(xform, AABB(Vector3(-width * 0.5, 0.0, -depth * 0.5), Vector3(width, floors * FLOOR_HEIGHT, depth)))
 
 
 func _build_residential(r: Rect2) -> void:
-	_slab(r, 0.1, _material("paving", Color(0.6, 0.58, 0.55)))
-	var north := _build_row(r, -1.0, RESIDENTIAL_ROW)
-	var south := _build_row(r, 1.0, RESIDENTIAL_ROW)
+	_slab(r, 0.1, _material("paving", Color(0.5, 0.48, 0.46)))
+	var north := _builder.row(r, -1.0, RESIDENTIAL_ROW)
+	var south := _builder.row(r, 1.0, RESIDENTIAL_ROW)
 	# Двор: трава и пара деревьев
 	var yard := Rect2(r.position.x + 1.0, r.position.y + north + 1.5, r.size.x - 2.0, r.size.y - north - south - 3.0)
 	if yard.size.y >= 4.0:
@@ -558,8 +580,8 @@ func _build_residential(r: Rect2) -> void:
 
 func _build_industrial(r: Rect2) -> void:
 	_slab(r, 0.1, _material("yard", Color(0.45, 0.45, 0.44)))
-	var north := _build_row(r, -1.0, INDUSTRIAL_ROW)
-	var south := _build_row(r, 1.0, INDUSTRIAL_ROW)
+	var north := _builder.row(r, -1.0, INDUSTRIAL_ROW)
+	var south := _builder.row(r, 1.0, INDUSTRIAL_ROW)
 	# Во дворе — контейнеры
 	var yard := Rect2(r.position.x + 3.0, r.position.y + north + 3.0, r.size.x - 6.0, r.size.y - north - south - 6.0)
 	if yard.size.y < 6.5:
@@ -601,7 +623,7 @@ func _build_park(r: Rect2, density: float) -> void:
 
 
 func _build_square(r: Rect2) -> void:
-	_slab(r, 0.12, _material("square", Color(0.74, 0.72, 0.68)))
+	_slab(r, 0.12, _material("square", Color(0.5, 0.48, 0.46)))
 	var c := r.get_center()
 	# Фонтан
 	var stone := _material("stone", Color(0.8, 0.78, 0.74))
@@ -660,135 +682,9 @@ func _build_parking(r: Rect2) -> void:
 				_add_parked_car(Vector3(start + (k + 0.5) * stall, 0.1, z), row)
 
 
-## Припаркованная машина (пока коробка, как в трафике).
+## Припаркованная машина носом к проезду.
 func _add_parked_car(pos: Vector3, facing: float) -> void:
-	var color := CAR_COLORS[rng.randi() % CAR_COLORS.size()]
-	var paint := _material("car%d" % CAR_COLORS.find(color), color, 0.4)
-	var glass := _material("glass", Color(0.1, 0.13, 0.16), 0.15)
-	var offset := 0.2 * facing
-	_add_box(Vector3(1.8, 0.7, 4.3), pos + Vector3(0, 0.6, 0), paint, true)
-	_add_box(Vector3(1.6, 0.55, 2.1), pos + Vector3(0, 1.22, offset), glass)
-
-
-## Ряд зданий вдоль северной (side = -1) или южной (side = 1) стороны квартала,
-## фасадами к улице. Возвращает глубину самого глубокого здания.
-func _build_row(r: Rect2, side: float, p: Dictionary) -> float:
-	var yaw := 0.0 if side > 0.0 else PI
-	var front := r.end.y if side > 0.0 else r.position.y
-	var max_allowed := floorf((r.size.y * 0.5 - 1.0) / 2.0) * 2.0
-	var prebuilt: Array = p["prebuilt"]
-	var widths: Array = p["widths"]
-	var depths: Array = p["depths"]
-	var floors_range: Vector2i = p["floors"]
-	var gap: Vector2 = p["gap"]
-	var styles: Array = p["styles"]
-	var cursor := 0.0
-	var span := r.size.x
-	var max_depth := 0.0
-	while span - cursor >= 6.0:
-		var remaining := span - cursor
-		var fitting: Array[String] = []
-		for building: String in prebuilt:
-			var b := _kit.bounds(building)
-			if b.size.x <= remaining and b.size.z <= max_allowed:
-				fitting.append(building)
-		var bounds: AABB
-		var xform: Transform3D
-		if not fitting.is_empty() and rng.randf() < float(p["prebuilt_chance"]):
-			var building := fitting[rng.randi() % fitting.size()]
-			bounds = _kit.bounds(building)
-			xform = _row_transform(r.position.x + cursor, front, yaw, bounds)
-			_kit.add(building, xform)
-		else:
-			var width := mini(int(remaining) / 2 * 2, int(widths[rng.randi() % widths.size()]))
-			var depth := minf(float(depths[rng.randi() % depths.size()]), max_allowed)
-			if depth < 6.0:
-				break
-			var floors := rng.randi_range(floors_range.x, floors_range.y)
-			bounds = AABB(Vector3(-width * 0.5, 0.0, -depth * 0.5), Vector3(width, floors * FLOOR_HEIGHT, depth))
-			xform = _row_transform(r.position.x + cursor, front, yaw, bounds)
-			_build_modular(xform, width, depth, floors, styles[rng.randi() % styles.size()])
-		_add_collision(xform, bounds)
-		max_depth = maxf(max_depth, bounds.size.z)
-		cursor += bounds.size.x + rng.randf_range(gap.x, gap.y)
-	return max_depth
-
-
-## Где поставить здание, чтобы его левый край был в left, а фасад — на линии front.
-func _row_transform(left: float, front: float, yaw: float, b: AABB) -> Transform3D:
-	var pos: Vector3
-	if yaw == 0.0:
-		pos = Vector3(left - b.position.x, 0.1, front - b.end.z)
-	else:
-		pos = Vector3(left + b.end.x, 0.1, front + b.end.z)
-	return Transform3D(Basis(Vector3.UP, yaw), pos)
-
-
-func _add_collision(xform: Transform3D, b: AABB) -> void:
-	var body := StaticBody3D.new()
-	body.transform = xform
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = b.size
-	shape.shape = box
-	shape.position = b.get_center()
-	body.add_child(shape)
-	add_child(body)
-
-
-## Здание из кусков: стены по 2 м на каждый этаж, колонны по углам, карниз сверху.
-func _build_modular(xform: Transform3D, width: int, depth: float, floors: int, style: Dictionary) -> void:
-	var ground: Array = style["ground"]
-	var upper: Array = style["upper"]
-	var w := float(width)
-	var sides := [
-		[Vector3(0, 0, 1), 0.0, w], [Vector3(0, 0, -1), PI, w],
-		[Vector3(1, 0, 0), PI * 0.5, depth], [Vector3(-1, 0, 0), -PI * 0.5, depth],
-	]
-	for side_index in sides.size():
-		var normal: Vector3 = sides[side_index][0]
-		var yaw: float = sides[side_index][1]
-		var length: float = sides[side_index][2]
-		var half_extent: float = depth * 0.5 if side_index < 2 else w * 0.5
-		var along := Vector3(normal.z, 0.0, normal.x).abs()
-		var basis := Basis(Vector3.UP, yaw)
-		var segments := int(round(length / 2.0))
-		var door_at := segments / 2 if side_index == 0 else -1
-		for k in segments:
-			var offset := -length * 0.5 + 1.0 + 2.0 * k
-			var base := normal * half_extent + along * offset
-			# Одна и та же деталь по всей высоте столбца — так фасад выглядит цельно
-			var upper_piece: String = upper[rng.randi() % upper.size()]
-			for f in floors:
-				var piece: String
-				if f == 0 and k == door_at:
-					piece = style["door"]
-					var door: String = CityModels.DOORS[rng.randi() % CityModels.DOORS.size()]
-					_kit.add(door, xform * Transform3D(basis, base) * Transform3D(Basis(), CityModels.DOOR_OFFSET))
-				elif f == 0:
-					piece = ground[rng.randi() % ground.size()]
-				else:
-					piece = upper_piece
-				_kit.add(piece, xform * Transform3D(basis, base + Vector3.UP * (f * FLOOR_HEIGHT)))
-			_kit.add(style["cornice"], xform * Transform3D(basis, base + Vector3.UP * (floors * FLOOR_HEIGHT)))
-	# Колонны на углах
-	for corner: Vector3 in [Vector3(w * 0.5, 0, depth * 0.5), Vector3(-w * 0.5, 0, depth * 0.5),
-			Vector3(w * 0.5, 0, -depth * 0.5), Vector3(-w * 0.5, 0, -depth * 0.5)]:
-		for f in floors:
-			var column := CityModels.COLUMN_MIDDLE
-			if f == 0:
-				column = CityModels.COLUMN_BOTTOM
-			elif f == floors - 1:
-				column = CityModels.COLUMN_TOP
-			_kit.add(column, xform * Transform3D(Basis(), corner + Vector3.UP * (f * FLOOR_HEIGHT)))
-	# Плоская крыша
-	var roof := MeshInstance3D.new()
-	var roof_mesh := BoxMesh.new()
-	roof_mesh.size = Vector3(w - 0.1, 0.2, depth - 0.1)
-	roof.mesh = roof_mesh
-	roof.material_override = _material("roof", Color(0.22, 0.22, 0.23))
-	roof.transform = xform * Transform3D(Basis(), Vector3.UP * (floors * FLOOR_HEIGHT - 0.1))
-	add_child(roof)
+	_props.parked_car(pos - Vector3.UP * 0.1, Vector3(0, 0, -facing))
 
 
 # --- Разметка -----------------------------------------------------------------
@@ -808,7 +704,8 @@ func _build_markings() -> void:
 			var h := DIRS[dir]
 			var n := lanes(index, dir)
 			var across := CENTER_GAP + n * LANE_WIDTH
-			var p := _local_center(index) - h * (crossing_half(index, dir) + 0.5) + right_of(h) * (across * 0.5 + 0.1)
+			# Стоп-линия за зеброй (зебра — 0.6…3.4 м от края перекрёстка)
+			var p := _local_center(index) - h * (crossing_half(index, dir) + 3.8) + right_of(h) * (across * 0.5 + 0.1)
 			_add_paint(_paint, p, dir % 2 == 0, across - 0.2, 0.4)
 
 
@@ -837,6 +734,19 @@ func _mark_segment(index: int, next: int, dir: int) -> void:
 		while t + 3.0 <= length:
 			_add_paint(_paint, lane_line - mid + start + h * (t + 1.5), along_x, 3.0, 0.15)
 			t += 9.0
+
+
+func approach_count(index: int) -> int:
+	return _approach_count(index)
+
+
+func local_center(index: int) -> Vector3:
+	return _local_center(index)
+
+
+## Дерево у тротуара (для деталей улиц).
+func add_street_tree(pos: Vector3, size: float) -> void:
+	_add_tree(pos, size)
 
 
 func _approach_count(index: int) -> int:
