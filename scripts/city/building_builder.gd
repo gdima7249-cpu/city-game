@@ -263,7 +263,10 @@ func modular(xform: Transform3D, width: int, depth: float, floors: int, style: D
 ## но отбрасывает тень (детали пака тени не дают — так в разы быстрее).
 func _lod(xform: Transform3D, b: AABB, style_name: String) -> void:
 	var center := xform * Transform3D(Basis(), b.get_center())
-	boxes.add("box", center, b.size, _lod_material(style_name), 0.0, CityKit.NEAR_RANGE - 30.0,
+	# Коробка чуть утоплена внутрь стен: пока вблизи видны и стены, и коробка
+	# (плавная смена), они не мерцают полосами друг сквозь друга
+	var far_size := Vector3(maxf(b.size.x - 0.8, 0.5), b.size.y - 0.15, maxf(b.size.z - 0.8, 0.5))
+	boxes.add("box", center, far_size, _lod_material(style_name), 0.0, CityKit.NEAR_RANGE - 30.0,
 			GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 	# Тень: коробка чуть меньше дома, чтобы не затенять собственные стены
 	var shadow_size := Vector3(maxf(b.size.x - 0.6, 0.5), b.size.y, maxf(b.size.z - 0.6, 0.5))

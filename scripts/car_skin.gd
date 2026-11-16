@@ -7,18 +7,32 @@ const PLACEHOLDERS: Array[String] = [
 	"WheelFrontLeft/Mesh", "WheelFrontRight/Mesh", "WheelRearLeft/Mesh", "WheelRearRight/Mesh",
 ]
 
+var _wheels := [] # колёса модели: [узел модели, узел колеса физики, исходный поворот]
+
 
 func _ready() -> void:
-	var model := VehicleModels.player_model()
+	var car := get_parent()
+	var model := VehicleModels.player_model((car as Car).model_path if car is Car else "")
 	if model == null:
 		return
-	var car := get_parent()
 	for path in PLACEHOLDERS:
 		var node := car.get_node_or_null(path) as Node3D
 		if node != null:
 			node.visible = false
 	add_child(model)
 	_sit_on_ground(car as Car, model)
+	# Колёса модели повторяют колёса физики: крутятся и поворачиваются рулём
+	for w: Array in VehicleModels.find_wheels(model):
+		var physics_name: String = ("WheelFront" if w[1] else "WheelRear") + ("Left" if w[2] else "Right")
+		var physics_wheel := car.get_node_or_null(physics_name) as Node3D
+		if physics_wheel != null:
+			_wheels.append([w[0], physics_wheel, w[3]])
+	set_process(not _wheels.is_empty())
+
+
+func _process(_delta: float) -> void:
+	for w: Array in _wheels:
+		(w[0] as Node3D).basis = (w[1] as Node3D).basis * (w[2] as Basis)
 
 
 ## Ставит модель так, чтобы низ её колёс был ровно на дороге,

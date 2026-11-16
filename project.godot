@@ -6,7 +6,7 @@ config_version=5
 [application]
 
 config/name="City Game"
-config/description="Игра в открытом городе. Этап 1: персонаж и тестовая карта."
+config/description="Игра в открытом городе. Базовая версия города."
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 

@@ -139,8 +139,14 @@ func scare(danger_pos: Vector3, along := Vector3.ZERO) -> void:
 # --- Кадр --------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
-	_state_time += delta
 	_update_lod()
+	# Далеко от камеры считаем через кадр с двойным шагом времени — так дешевле
+	if _sim_far and state != State.KNOCKED and (Engine.get_physics_frames() + get_instance_id()) % 2 == 1:
+		_skipped += delta
+		return
+	delta += _skipped
+	_skipped = 0.0
+	_state_time += delta
 	if state != State.KNOCKED and state != State.DOWN:
 		_check_vehicles()
 	match state:
@@ -674,6 +680,12 @@ func _get_player() -> Node3D:
 	return _player
 
 
+## Дальше этого от камеры жители и машины считаются через кадр
+const SIM_FAR_DISTANCE := 90.0
+var _sim_far := false
+var _skipped := 0.0
+
+
 ## Далеко от камеры: не рисуем и не считаем анимацию (сам человек продолжает ходить).
 func _update_lod() -> void:
 	if (Engine.get_physics_frames() + get_instance_id()) % 30 != 0:
@@ -682,6 +694,7 @@ func _update_lod() -> void:
 	if camera == null:
 		return
 	var near := camera.global_position.distance_squared_to(global_position) < HIDE_DISTANCE * HIDE_DISTANCE
+	_sim_far = camera.global_position.distance_squared_to(global_position) > SIM_FAR_DISTANCE * SIM_FAR_DISTANCE
 	if _model.visible != near:
 		_model.visible = near
 		if _human != null:

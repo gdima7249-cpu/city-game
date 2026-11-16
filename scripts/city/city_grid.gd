@@ -81,6 +81,7 @@ var _props_body: StaticBody3D
 
 
 func _ready() -> void:
+	add_to_group("city")
 	rng.seed = random_seed
 	NightLights.clear()
 	_boxes = BoxBatch.new()
@@ -383,15 +384,44 @@ func _flush_batches() -> void:
 	trunk.rings = 1
 	trunk.material = _material("bark", Color(0.33, 0.24, 0.17))
 	_multimesh(trunk, _trunks, "TreeTrunks")
-	var shades: Array[Color] = [Color(0.22, 0.45, 0.2), Color(0.3, 0.52, 0.22)]
+	var shades: Array[Color] = [Color(0.2, 0.4, 0.17), Color(0.28, 0.46, 0.2)]
 	for k in 2:
-		var crown := SphereMesh.new()
-		crown.radius = 2.0
-		crown.height = 3.6
-		crown.radial_segments = 7
-		crown.rings = 4
-		crown.material = _material("leaves%d" % k, shades[k])
-		_multimesh(crown, _crowns[k], "TreeCrowns%d" % k)
+		_multimesh(_crown_mesh(k, shades[k]), _crowns[k], "TreeCrowns%d" % k)
+
+
+## Крона из нескольких «шаров» листвы разного оттенка: живее, чем один шар.
+func _crown_mesh(variant: int, color: Color) -> Mesh:
+	var random := RandomNumberGenerator.new()
+	random.seed = 31 + variant
+	var ball := SphereMesh.new()
+	ball.radial_segments = 7
+	ball.rings = 4
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var blobs := [[Vector3(0, 0, 0), 1.55]]
+	for b in 3:
+		var angle := TAU * b / 3.0 + random.randf_range(-0.4, 0.4)
+		blobs.append([Vector3(cos(angle) * 1.1, random.randf_range(-0.5, 0.3), sin(angle) * 1.0), random.randf_range(1.15, 1.35)])
+	blobs.append([Vector3(random.randf_range(-0.3, 0.3), 0.9, random.randf_range(-0.3, 0.3)), 1.1])
+	for blob: Array in blobs:
+		var r: float = blob[1]
+		ball.radius = r
+		ball.height = r * 1.8
+		var arrays := ball.get_mesh_arrays()
+		var tint := color.lightened(random.randf_range(-0.12, 0.15))
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		for idx in indices:
+			st.set_color(tint)
+			st.set_normal(normals[idx])
+			st.add_vertex(verts[idx] + blob[0])
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.vertex_color_is_srgb = true
+	mat.roughness = 0.9
+	st.set_material(mat)
+	return st.commit()
 
 
 # --- Земля и вода -------------------------------------------------------------
@@ -405,6 +435,18 @@ func _build_ground() -> void:
 	var depth := 4.0
 	var size := Vector3(x1 - x0, depth, z1 - z0)
 	_add_box(size, Vector3((x0 + x1) * 0.5, -depth * 0.5, (z0 + z1) * 0.5), _grass(), true)
+	# Пригород до горизонта: плоская земля чуть ниже города, чтобы за краем не было пустоты
+	# (на востоке её нет — там до горизонта вода)
+	var outskirts := MeshInstance3D.new()
+	var land := PlaneMesh.new()
+	var reach := 6000.0
+	var east := x1 if land_columns < nx else x1 + reach
+	land.size = Vector2(east - (x0 - reach), (z1 + reach) - (z0 - reach))
+	outskirts.mesh = land
+	outskirts.material_override = _material("outskirts", Color(0.3, 0.42, 0.24))
+	outskirts.position = Vector3((east + x0 - reach) * 0.5, -0.05, (z0 + z1) * 0.5)
+	outskirts.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(outskirts)
 
 	# Асфальт под всеми улицами; кварталы ложатся сверху
 	var asphalt := MeshInstance3D.new()
@@ -440,14 +482,14 @@ func _build_water() -> void:
 	var rail := _material("rail", Color(0.2, 0.22, 0.24), 0.5)
 	_add_box(Vector3(0.12, 1.1, length), Vector3(edge - 0.3, 0.55, total_z * 0.5), rail, true)
 
-	# Дно и вода
-	var width := 600.0
+	# Дно и вода (до самого горизонта)
+	var width := 6000.0
 	var bottom_depth := 6.0
-	_add_box(Vector3(width, 1.0, length + 400.0), Vector3(edge + 0.6 + width * 0.5, -bottom_depth - 0.5, total_z * 0.5),
+	_add_box(Vector3(width, 1.0, length + 6000.0), Vector3(edge + 0.6 + width * 0.5, -bottom_depth - 0.5, total_z * 0.5),
 			_material("seabed", Color(0.25, 0.3, 0.28)), true)
 	var water := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(width, length + 400.0)
+	plane.size = Vector2(width, length + 6000.0)
 	water.mesh = plane
 	var water_mat := StandardMaterial3D.new()
 	water_mat.albedo_color = Color(0.12, 0.3, 0.42)
@@ -860,4 +902,66 @@ func _place_player() -> void:
 		car.global_transform = Transform3D(Basis(Vector3.UP, PI * 0.5), car_pos)
 	var player := get_node_or_null(player_path) as Node3D
 	if player != null:
-		player.global_position = global_position + Vector3(r.get_center().x - 3.0, 0.3, r.end.y - sidewalk * 0.5)
+		# Посередине между деревьями тротуара, чтобы камера на старте не упиралась в крону
+		var step := StreetProps.TREE_STEP
+		var along := 5.0 + step * roundf((r.size.x * 0.5 - 3.0 - 5.0) / step)
+		player.global_position = global_position + Vector3(r.position.x + along, 0.3, r.end.y - sidewalk * 0.5)
+
+
+# --- Сесть в любую машину ------------------------------------------------------
+
+const CAR_SCENE := preload("res://scenes/car.tscn")
+const MAX_TAKEN_CARS := 4 ## Сколько угнанных машин оставлять в городе (старые убираются)
+
+var _taken: Array[Car] = []
+
+
+## Игрок хочет сесть в машину рядом с pos: ближайшая машина трафика или
+## припаркованная становится машиной, которой можно управлять. null — рядом нет.
+func take_car_near(pos: Vector3, max_distance: float) -> Car:
+	var best := max_distance
+	var traffic: TrafficCar = null
+	for car in cars:
+		var d := (car.global_position * Vector3(1, 0, 1)).distance_to(pos * Vector3(1, 0, 1))
+		if d < best:
+			best = d
+			traffic = car
+	var xform: Transform3D
+	var path := ""
+	if traffic != null:
+		# Машина трафика смотрит носом в -Z, машина игрока — в +Z
+		xform = traffic.global_transform
+		xform.basis = xform.basis * Basis(Vector3.UP, PI)
+		path = traffic.model_path
+		cars.erase(traffic)
+		traffic.queue_free()
+	elif _props != null:
+		var parked := _props.take_parked(to_local(pos), max_distance)
+		if parked.is_empty():
+			return null
+		xform = global_transform * (parked[0] as Transform3D)
+		xform.basis = xform.basis * Basis(Vector3.UP, PI)
+		path = parked[1]
+	else:
+		return null
+	var car := CAR_SCENE.instantiate() as Car
+	car.model_path = path
+	get_parent().add_child(car)
+	car.global_transform = Transform3D(xform.basis.orthonormalized(), Vector3(xform.origin.x, global_position.y + 0.6, xform.origin.z))
+	_taken.append(car)
+	_forget_old_cars()
+	return car
+
+
+## Лишние угнанные машины (без водителя) убираем, чтобы город не забивался.
+func _forget_old_cars() -> void:
+	var k := 0
+	while _taken.size() > MAX_TAKEN_CARS and k < _taken.size():
+		var old := _taken[k]
+		if not is_instance_valid(old):
+			_taken.remove_at(k)
+		elif old.driver == null:
+			_taken.remove_at(k)
+			old.queue_free()
+		else:
+			k += 1
