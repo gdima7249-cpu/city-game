@@ -1,5 +1,5 @@
 extends Node
-## Назначает клавиши управления при запуске игры.
+## Назначает клавиши управления и следит за курсором мыши.
 ##
 ## Клавиши привязаны к физическому положению на клавиатуре, поэтому
 ## управление работает и при русской раскладке (W = Ц и т.д.).
@@ -11,7 +11,25 @@ func _enter_tree() -> void:
 	_bind("move_right", [KEY_D, KEY_RIGHT])
 	_bind("sprint", [KEY_SHIFT])
 	_bind("jump", [KEY_SPACE])
+	_bind("handbrake", [KEY_SPACE])
+	_bind("interact", [KEY_E, KEY_F])
+	_bind("reset_vehicle", [KEY_R])
 	_bind("release_mouse", [KEY_ESCAPE])
+	_bind("time_skip", [KEY_T])
+
+
+func _ready() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Esc показывает курсор, клик мышью снова прячет его
+	if event.is_action_pressed("release_mouse"):
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif event is InputEventMouseButton and event.pressed \
+			and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		get_viewport().set_input_as_handled()
 
 
 func _bind(action: StringName, keys: Array) -> void:
