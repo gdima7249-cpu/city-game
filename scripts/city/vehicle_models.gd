@@ -30,6 +30,14 @@ const TRAFFIC_YAW_DEGREES := 180.0
 const SCALE := 1.5
 ## Модель игрока сама встаёт колёсами на дорогу (см. car_skin.gd), поэтому подъём 0.
 const PLAYER_LIFT := 0.0
+## Колёса модели крутятся и поворачиваются, если их узлы называются с этого слова
+## (у Kenney: wheel-front-left, wheel-back-right). Для другого пака поменяйте слова;
+## если колёс с такими именами нет, модель просто едет с неподвижными колёсами.
+const WHEEL_PREFIX := "wheel"
+const WHEEL_FRONT_WORD := "front"
+const WHEEL_LEFT_WORD := "left"
+## Радиус колеса модели после увеличения, м (нужен, чтобы колёса крутились без проскальзывания)
+const WHEEL_RADIUS := 0.45
 
 
 static func random_traffic_model(rng_value: int) -> Node3D:
@@ -56,3 +64,13 @@ static func _load(path: String, yaw_degrees: float, lift: float) -> Node3D:
 		model.scale = Vector3.ONE * SCALE
 		model.position.y = lift
 	return model
+
+
+## Колёса модели: [[узел, переднее?, левое?, исходный поворот], ...].
+static func find_wheels(model: Node) -> Array:
+	var result := []
+	for node in model.find_children(WHEEL_PREFIX + "*", "Node3D", true, false):
+		var n := node as Node3D
+		var lower := n.name.to_lower()
+		result.append([n, lower.contains(WHEEL_FRONT_WORD), lower.contains(WHEEL_LEFT_WORD), n.basis])
+	return result

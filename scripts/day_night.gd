@@ -86,8 +86,9 @@ func _apply() -> void:
 		_sky.sky_top_color = SKY_TOP_NIGHT.lerp(SKY_TOP_DAY, daylight)
 		var horizon := HORIZON_NIGHT.lerp(HORIZON_DAY, daylight).lerp(HORIZON_DUSK, dusk * 0.8)
 		_sky.sky_horizon_color = horizon
-		_sky.ground_horizon_color = horizon.darkened(0.15)
-		_sky.ground_bottom_color = Color(0.35, 0.33, 0.3) * lerpf(0.15, 1.0, daylight)
+		# Низ неба того же цвета, что дымка у горизонта: за краем земли нет серой полосы
+		_sky.ground_horizon_color = horizon
+		_sky.ground_bottom_color = horizon.darkened(0.1)
 	if _env != null:
 		_env.ambient_light_color = AMBIENT_NIGHT.lerp(AMBIENT_DAY, daylight)
 		_env.ambient_light_energy = lerpf(0.35, 0.7, daylight)

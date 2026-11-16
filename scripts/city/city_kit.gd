@@ -7,23 +7,27 @@ extends RefCounted
 ## участки по CHUNK метров: участки за спиной камеры не рисуются вовсе,
 ## а мелочи (кондиционеры, двери, урны) не рисуются дальше SMALL_RANGE.
 ##
-## Окна бывают двух видов: в части окон ночью горит свет (материал
+## Окна бывают двух видов: в части окон ночью горит свет (яркость
 ## WINDOW_LIT_ENERGY), в остальных темно — так ночной город выглядит живым.
+## За стеклом — «комната» из шейдера shaders/window_interior.gdshader.
 
 const PATH := "res://assets/downtown/%s.gltf"
-const CHUNK := 200.0
-const NEAR_RANGE := 300.0  ## Дальше этого вместо детальных стен — упрощённые дома (BuildingBuilder)
+const CHUNK := 80.0
+const NEAR_RANGE := 220.0  ## Дальше этого вместо детальных стен — упрощённые дома (BuildingBuilder)
 const GROUND_RANGE := 900.0 ## Тротуары видны далеко
 const SMALL_RANGE := 160.0 ## Дальше этого не рисуются мелкие детали
 const LIT_SHARE := 0.45    ## Доля окон, в которых ночью горит свет
 const WINDOW_LIT_ENERGY := 1.6
-const INTERIOR_MATERIAL := "MI_FakeInterior"
+const INTERIOR_MATERIAL := "MI_FakeInterior" ## Материал пака на месте комнаты за окном
+const GLASS_MATERIAL := "MI_Glass"
+const INTERIOR_SHADER := preload("res://shaders/window_interior.gdshader")
 
 var rng := RandomNumberGenerator.new()
 
 var _pieces := {}  # имя -> [Mesh, Transform3D, Mesh с горящими окнами или null] или []
 var _batches := {} # [имя, участок, горит] -> Array[Transform3D]
-var _window_lit: StandardMaterial3D
+var _interiors: Array[ShaderMaterial] = [null, null] # [тёмные, горящие ночью]
+var _glass_material: StandardMaterial3D
 
 
 static func available() -> bool:
@@ -104,7 +108,10 @@ func _piece(piece_name: String) -> Array:
 		var root := scene.instantiate()
 		var mesh_node := _find_mesh(root)
 		if mesh_node != null:
-			result = [mesh_node.mesh, _relative_transform(root, mesh_node), _lit_variant(mesh_node.mesh)]
+			var base: Mesh = _window_variant(mesh_node.mesh, false)
+			if base == null:
+				base = mesh_node.mesh
+			result = [base, _relative_transform(root, mesh_node), _window_variant(mesh_node.mesh, true)]
 		root.free()
 	else:
 		push_warning("Нет модели: " + piece_name)
@@ -112,29 +119,57 @@ func _piece(piece_name: String) -> Array:
 	return result
 
 
-## Копия модели, где «комната за окном» светится ночью. null — окон нет.
-func _lit_variant(mesh: Mesh) -> Mesh:
+## Копия модели с нашими материалами окон: «комната за окном» вместо серой
+## заливки и светлое стекло. lit — эта копия ночью светится.
+## null — в модели нет окон (тогда для lit копия не нужна).
+func _window_variant(mesh: Mesh, lit: bool) -> Mesh:
 	var array_mesh := mesh as ArrayMesh
 	if array_mesh == null:
 		return null
 	var has_interior := false
+	var has_glass := false
 	for s in array_mesh.get_surface_count():
 		var m := array_mesh.surface_get_material(s)
 		if m != null and m.resource_name.begins_with(INTERIOR_MATERIAL):
 			has_interior = true
+		if m != null and m.resource_name.begins_with(GLASS_MATERIAL):
+			has_glass = true
+	# Стекло меняем только там, где за ним есть комната; сплошь остеклённые
+	# стены оставляем тёмными, иначе дом выглядит прозрачным
 	if not has_interior:
 		return null
-	if _window_lit == null:
-		_window_lit = StandardMaterial3D.new()
-		_window_lit.albedo_color = Color(0.9, 0.88, 0.84)
-		_window_lit.emission = Color(1.0, 0.82, 0.55)
-		NightLights.register(_window_lit, WINDOW_LIT_ENERGY)
 	var copy := array_mesh.duplicate() as ArrayMesh
 	for s in copy.get_surface_count():
 		var m := copy.surface_get_material(s)
-		if m != null and m.resource_name.begins_with(INTERIOR_MATERIAL):
-			copy.surface_set_material(s, _window_lit)
+		if m == null:
+			continue
+		if m.resource_name.begins_with(INTERIOR_MATERIAL):
+			copy.surface_set_material(s, _interior(lit))
+		elif m.resource_name.begins_with(GLASS_MATERIAL):
+			copy.surface_set_material(s, _glass())
 	return copy
+
+
+func _interior(lit: bool) -> ShaderMaterial:
+	var index := 1 if lit else 0
+	if _interiors[index] == null:
+		var m := ShaderMaterial.new()
+		m.shader = INTERIOR_SHADER
+		m.set_shader_parameter("lit", 1.0 if lit else 0.0)
+		NightLights.register_shader(m, WINDOW_LIT_ENERGY)
+		_interiors[index] = m
+	return _interiors[index]
+
+
+## Стекло: светлее, чем в паке, с бликом неба, чтобы было видно комнату.
+func _glass() -> StandardMaterial3D:
+	if _glass_material == null:
+		_glass_material = StandardMaterial3D.new()
+		_glass_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_glass_material.albedo_color = Color(0.5, 0.6, 0.68, 0.16)
+		_glass_material.metallic = 0.0
+		_glass_material.roughness = 0.05
+	return _glass_material
 
 
 func _find_mesh(node: Node) -> MeshInstance3D:

@@ -237,7 +237,10 @@ func _square_bollards(r: Rect2) -> void:
 				p = Vector3(r.position.x + k, 0.1, r.position.y + 0.3 if edge == 0 else r.end.y - 0.3)
 			else:
 				p = Vector3(r.position.x + 0.3 if edge == 2 else r.end.x - 0.3, 0.1, r.position.y + k)
-			kit.add(CityModels.BOLLARD, Transform3D(Basis(), p))
+			# Не ставим столбик вплотную к приствольной клетке дерева (деревья через TREE_STEP от 11 м)
+			var from_tree := fposmod(k - 5.0 - TREE_STEP * 0.5, TREE_STEP)
+			if from_tree > 1.5 and from_tree < TREE_STEP - 1.5:
+				kit.add(CityModels.BOLLARD, Transform3D(Basis(), p))
 			k += 4.0
 
 

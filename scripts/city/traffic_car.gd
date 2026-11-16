@@ -58,6 +58,8 @@ var _yaw_wobble := 0.0
 var _yaw_wobble_vel := 0.0
 var _horn: AudioStreamPlayer3D
 var _model: Node3D # всё, что рисуется
+var _wheels := []  # колёса модели (VehicleModels.find_wheels)
+var _wheel_spin := 0.0
 var honks := 0 # сколько раз сигналила (для проверок)
 
 
@@ -128,8 +130,15 @@ func is_stopped() -> bool:
 
 
 func _physics_process(delta: float) -> void:
-	_honk_cooldown = maxf(_honk_cooldown - delta, 0.0)
 	_update_lod()
+	# Далеко от камеры считаем через кадр с двойным шагом времени — так дешевле
+	if _sim_far and (Engine.get_physics_frames() + get_instance_id()) % 2 == 1:
+		_skipped += delta
+		return
+	delta += _skipped
+	_skipped = 0.0
+	_honk_cooldown = maxf(_honk_cooldown - delta, 0.0)
+	_spin_wheels(delta)
 	_hit_cooldown = maxf(_hit_cooldown - delta, 0.0)
 	_check_player_hit()
 
@@ -500,6 +509,22 @@ func _on_rammed(car: RigidBody3D, relative: Vector3) -> void:
 	honk(true)
 
 
+## Колёса крутятся со скоростью машины (только когда машину видно).
+func _spin_wheels(delta: float) -> void:
+	if _wheels.is_empty() or not _model.visible or speed < 0.05:
+		return
+	_wheel_spin = fmod(_wheel_spin + speed / VehicleModels.WHEEL_RADIUS * delta, TAU)
+	var spin := Basis(Vector3.RIGHT, _wheel_spin)
+	for w: Array in _wheels:
+		(w[0] as Node3D).basis = spin * (w[3] as Basis)
+
+
+## Дальше этого от камеры жители и машины считаются через кадр
+const SIM_FAR_DISTANCE := 90.0
+var _sim_far := false
+var _skipped := 0.0
+
+
 ## Далеко от камеры корпус не рисуем (машина продолжает ездить).
 func _update_lod() -> void:
 	if (Engine.get_physics_frames() + get_instance_id()) % 30 != 0:
@@ -508,6 +533,7 @@ func _update_lod() -> void:
 	if camera == null:
 		return
 	var far := camera.global_position.distance_squared_to(global_position) > HIDE_DISTANCE * HIDE_DISTANCE
+	_sim_far = camera.global_position.distance_squared_to(global_position) > SIM_FAR_DISTANCE * SIM_FAR_DISTANCE
 	if _model != null and _model.visible == far:
 		_model.visible = not far
 
@@ -569,6 +595,7 @@ func _build_body(color: Color) -> void:
 	var model := VehicleModels.random_traffic_model(randi())
 	if model != null:
 		_model.add_child(model)
+		_wheels = VehicleModels.find_wheels(model)
 	else:
 		_add_mesh(_box(Vector3(1.8, 0.6, LENGTH)), Vector3(0, 0.65, 0), paint)
 		_add_mesh(_box(Vector3(1.6, 0.55, 2.1)), Vector3(0, 1.22, 0.2), glass)
