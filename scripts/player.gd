@@ -57,6 +57,11 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("interact"):
 		var vehicle := _find_nearest_vehicle()
+		if vehicle == null:
+			# Любая машина города: из трафика или припаркованная
+			var city := get_tree().get_first_node_in_group("city") as CityGrid
+			if city != null:
+				vehicle = city.take_car_near(global_position, interact_distance)
 		if vehicle != null:
 			get_viewport().set_input_as_handled()
 			vehicle.enter(self)

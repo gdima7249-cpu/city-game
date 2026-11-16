@@ -11,10 +11,10 @@ var _wheels := [] # колёса модели: [узел модели, узел 
 
 
 func _ready() -> void:
-	var model := VehicleModels.player_model()
+	var car := get_parent()
+	var model := VehicleModels.player_model((car as Car).model_path if car is Car else "")
 	if model == null:
 		return
-	var car := get_parent()
 	for path in PLACEHOLDERS:
 		var node := car.get_node_or_null(path) as Node3D
 		if node != null:

@@ -81,6 +81,7 @@ var _props_body: StaticBody3D
 
 
 func _ready() -> void:
+	add_to_group("city")
 	rng.seed = random_seed
 	NightLights.clear()
 	_boxes = BoxBatch.new()
@@ -905,3 +906,62 @@ func _place_player() -> void:
 		var step := StreetProps.TREE_STEP
 		var along := 5.0 + step * roundf((r.size.x * 0.5 - 3.0 - 5.0) / step)
 		player.global_position = global_position + Vector3(r.position.x + along, 0.3, r.end.y - sidewalk * 0.5)
+
+
+# --- Сесть в любую машину ------------------------------------------------------
+
+const CAR_SCENE := preload("res://scenes/car.tscn")
+const MAX_TAKEN_CARS := 4 ## Сколько угнанных машин оставлять в городе (старые убираются)
+
+var _taken: Array[Car] = []
+
+
+## Игрок хочет сесть в машину рядом с pos: ближайшая машина трафика или
+## припаркованная становится машиной, которой можно управлять. null — рядом нет.
+func take_car_near(pos: Vector3, max_distance: float) -> Car:
+	var best := max_distance
+	var traffic: TrafficCar = null
+	for car in cars:
+		var d := (car.global_position * Vector3(1, 0, 1)).distance_to(pos * Vector3(1, 0, 1))
+		if d < best:
+			best = d
+			traffic = car
+	var xform: Transform3D
+	var path := ""
+	if traffic != null:
+		# Машина трафика смотрит носом в -Z, машина игрока — в +Z
+		xform = traffic.global_transform
+		xform.basis = xform.basis * Basis(Vector3.UP, PI)
+		path = traffic.model_path
+		cars.erase(traffic)
+		traffic.queue_free()
+	elif _props != null:
+		var parked := _props.take_parked(to_local(pos), max_distance)
+		if parked.is_empty():
+			return null
+		xform = global_transform * (parked[0] as Transform3D)
+		xform.basis = xform.basis * Basis(Vector3.UP, PI)
+		path = parked[1]
+	else:
+		return null
+	var car := CAR_SCENE.instantiate() as Car
+	car.model_path = path
+	get_parent().add_child(car)
+	car.global_transform = Transform3D(xform.basis.orthonormalized(), Vector3(xform.origin.x, global_position.y + 0.6, xform.origin.z))
+	_taken.append(car)
+	_forget_old_cars()
+	return car
+
+
+## Лишние угнанные машины (без водителя) убираем, чтобы город не забивался.
+func _forget_old_cars() -> void:
+	var k := 0
+	while _taken.size() > MAX_TAKEN_CARS and k < _taken.size():
+		var old := _taken[k]
+		if not is_instance_valid(old):
+			_taken.remove_at(k)
+		elif old.driver == null:
+			_taken.remove_at(k)
+			old.queue_free()
+		else:
+			k += 1

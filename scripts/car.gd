@@ -53,6 +53,8 @@ extends RigidBody3D
 const WHEEL_NAMES: Array[String] = ["WheelFrontLeft", "WheelFrontRight", "WheelRearLeft", "WheelRearRight"]
 
 var driver: Player = null
+## Файл модели машины; пусто — VehicleModels.PLAYER. Задаётся до добавления в сцену.
+var model_path := ""
 
 ## Управление в этом кадре: газ (-1..1), руль (-1..1), ручник.
 var throttle_input := 0.0

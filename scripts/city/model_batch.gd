@@ -7,15 +7,33 @@ var draw_range := 0.0 ## Дальше этого модели не рисуют�
 
 var _parts := {}   # путь -> Array[[Mesh, Transform3D]]
 var _batches := {} # [Mesh] -> Array[Transform3D]
+var _multimeshes := {} # Mesh -> MultiMesh (после flush)
+var _copies: Array = [] # номер копии -> Array[[Mesh, номер в MultiMesh]]
 
 
 ## Поставить модель из файла path. extra — поворот и масштаб внутри модели.
-func add(path: String, xform: Transform3D, extra: Transform3D = Transform3D()) -> void:
+## Возвращает номер копии (для hide).
+func add(path: String, xform: Transform3D, extra: Transform3D = Transform3D()) -> int:
+	var parts := []
 	for part: Array in _get_parts(path):
 		var mesh: Mesh = part[0]
 		if not _batches.has(mesh):
 			_batches[mesh] = []
+		parts.append([mesh, _batches[mesh].size()])
 		_batches[mesh].append(xform * extra * (part[1] as Transform3D))
+	_copies.append(parts)
+	return _copies.size() - 1
+
+
+## Убрать копию модели (например, в припаркованную машину сел игрок).
+func hide(copy: int) -> void:
+	if copy < 0 or copy >= _copies.size():
+		return
+	for part: Array in _copies[copy]:
+		var mm: MultiMesh = _multimeshes.get(part[0])
+		if mm != null:
+			mm.set_instance_transform(part[1], Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+	_copies[copy] = []
 
 
 func flush(parent: Node3D, node_name: String) -> void:
@@ -27,6 +45,7 @@ func flush(parent: Node3D, node_name: String) -> void:
 		mm.instance_count = transforms.size()
 		for k in transforms.size():
 			mm.set_instance_transform(k, transforms[k])
+		_multimeshes[mesh] = mm
 		var mmi := MultiMeshInstance3D.new()
 		mmi.name = node_name
 		mmi.multimesh = mm

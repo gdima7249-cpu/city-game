@@ -58,6 +58,7 @@ var _yaw_wobble := 0.0
 var _yaw_wobble_vel := 0.0
 var _horn: AudioStreamPlayer3D
 var _model: Node3D # всё, что рисуется
+var model_path := "" # файл модели (чтобы игрок мог сесть в такую же машину)
 var _wheels := []  # колёса модели (VehicleModels.find_wheels)
 var _wheel_spin := 0.0
 var honks := 0 # сколько раз сигналила (для проверок)
@@ -592,7 +593,8 @@ func _build_body(color: Color) -> void:
 	_model.name = "Look"
 	add_child(_model)
 	# Настоящая модель, если она задана в vehicle_models.gd; иначе коробка с колёсами
-	var model := VehicleModels.random_traffic_model(randi())
+	model_path = VehicleModels.random_traffic_path(randi())
+	var model := VehicleModels.traffic_model(model_path)
 	if model != null:
 		_model.add_child(model)
 		_wheels = VehicleModels.find_wheels(model)

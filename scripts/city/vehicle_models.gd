@@ -40,16 +40,27 @@ const WHEEL_LEFT_WORD := "left"
 const WHEEL_RADIUS := 0.45
 
 
-static func random_traffic_model(rng_value: int) -> Node3D:
+## Путь к случайной модели трафика ("" — моделей нет).
+static func random_traffic_path(rng_value: int) -> String:
 	if TRAFFIC.is_empty():
-		return null
-	return _load(TRAFFIC[posmod(rng_value, TRAFFIC.size())], TRAFFIC_YAW_DEGREES, 0.0)
+		return ""
+	return TRAFFIC[posmod(rng_value, TRAFFIC.size())]
 
 
-static func player_model() -> Node3D:
-	if PLAYER.is_empty():
+static func traffic_model(path: String) -> Node3D:
+	if path.is_empty():
 		return null
-	return _load(PLAYER, PLAYER_YAW_DEGREES, PLAYER_LIFT)
+	return _load(path, TRAFFIC_YAW_DEGREES, 0.0)
+
+
+## Модель машины, которой управляет игрок. path — любая модель из списка
+## (если игрок сел в машину трафика или припаркованную); пусто — PLAYER.
+static func player_model(path: String = "") -> Node3D:
+	if path.is_empty():
+		path = PLAYER
+	if path.is_empty():
+		return null
+	return _load(path, PLAYER_YAW_DEGREES, PLAYER_LIFT)
 
 
 static func _load(path: String, yaw_degrees: float, lift: float) -> Node3D:

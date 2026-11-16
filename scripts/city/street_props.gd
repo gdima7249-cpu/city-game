@@ -17,6 +17,8 @@ var boxes: BoxBatch
 var rng: RandomNumberGenerator
 var body: StaticBody3D
 var cars := ModelBatch.new()
+## Припаркованные машины, в которые можно сесть: [положение, путь к модели, номер копии, столкновение]
+var parked: Array = []
 
 var _mats := {}
 var _lamp_head: StandardMaterial3D
@@ -210,8 +212,7 @@ func _parked_row(curb: Vector3, along: Vector3, out: Vector3, length: float) -> 
 		if rng.randf() < 0.5:
 			var pos := curb + along * d + out * 1.15 - Vector3.UP * 0.1
 			var path: String = VehicleModels.TRAFFIC[rng.randi() % VehicleModels.TRAFFIC.size()]
-			cars.add(path, Transform3D(basis, pos), extra)
-			_shape(Transform3D(basis, pos + Vector3.UP * 0.75), Vector3(1.8, 1.4, 4.2))
+			_add_parked(path, Transform3D(basis, pos), extra)
 		d += 6.5
 
 
@@ -222,8 +223,32 @@ func parked_car(pos: Vector3, heading: Vector3) -> void:
 	var basis := Basis.looking_at(heading, Vector3.UP)
 	var extra := Transform3D(Basis(Vector3.UP, deg_to_rad(VehicleModels.TRAFFIC_YAW_DEGREES)).scaled(Vector3.ONE * VehicleModels.SCALE), Vector3.ZERO)
 	var path: String = VehicleModels.TRAFFIC[rng.randi() % VehicleModels.TRAFFIC.size()]
-	cars.add(path, Transform3D(basis, pos), extra)
-	_shape(Transform3D(basis, pos + Vector3.UP * 0.75), Vector3(1.8, 1.4, 4.2))
+	_add_parked(path, Transform3D(basis, pos), extra)
+
+
+func _add_parked(path: String, xform: Transform3D, extra: Transform3D) -> void:
+	var copy := cars.add(path, xform, extra)
+	var shape := _shape(xform * Transform3D(Basis(), Vector3.UP * 0.75), Vector3(1.8, 1.4, 4.2))
+	parked.append([xform, path, copy, shape])
+
+
+## Ближайшая припаркованная машина не дальше max_distance: её убирают с улицы,
+## а взамен возвращают [положение, путь к модели]. Пусто — рядом машин нет.
+func take_parked(pos: Vector3, max_distance: float) -> Array:
+	var best := max_distance
+	var found := -1
+	for k in parked.size():
+		var d := ((parked[k][0] as Transform3D).origin * Vector3(1, 0, 1)).distance_to(pos * Vector3(1, 0, 1))
+		if d < best:
+			best = d
+			found = k
+	if found < 0:
+		return []
+	var item: Array = parked[found]
+	parked.remove_at(found)
+	cars.hide(item[2])
+	(item[3] as CollisionShape3D).set_deferred("disabled", true)
+	return [item[0], item[1]]
 
 
 func _square_bollards(r: Rect2) -> void:
@@ -265,10 +290,11 @@ func _crosswalks() -> void:
 				s += 1.1
 
 
-func _shape(xform: Transform3D, size: Vector3) -> void:
+func _shape(xform: Transform3D, size: Vector3) -> CollisionShape3D:
 	var cs := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = size
 	cs.shape = box
 	cs.transform = xform
 	body.add_child(cs)
+	return cs
